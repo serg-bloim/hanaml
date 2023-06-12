@@ -8,6 +8,8 @@ class BGATestCase(unittest.TestCase):
     def test_stream_replays(self):
         acc = get_test_account()
         tables = list(stream_player_tables(acc.id, HANABI_GAME_ID))
+        for t in tables:
+            print(t)
         self.assertEqual(61, len(tables))
 
 
