@@ -31,11 +31,17 @@ def download_game_replay(game_ver, table_id, player_id, comments_id):
     result = re.findall('gameui\.completesetup\(.*({"players".*}),.*\)', resp.text)
     res_str = '[' + result[0] + ']'
     res_json = json.loads(res_str)
-
     filename = find_root_dir().joinpath('data', 'replays', f'{table_id}.json')
     filename.parent.mkdir(parents=True, exist_ok=True)
     with open(filename, "w") as file:
         file.write(json.dumps(res_json[0]))
+
+    result_gamelogs = re.findall('g_gamelogs = ([\s\S]*);\n\s*gameui\.mediaChatRating', resp.text)
+    result_gamelogs_str = result_gamelogs[0].replace('\n', '')
+    res_gamelog_json = json.loads(result_gamelogs_str)
+    filename = find_root_dir().joinpath('data', 'replays', f'{table_id}_gamelogs.json')
+    with open(filename, "w") as file:
+        file.write(json.dumps(res_gamelog_json))
     pass
 
 
