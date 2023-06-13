@@ -86,7 +86,7 @@ def get_replay_links(table_id) -> List[BgaReplayId]:
                         replays.append(
                             BgaReplayId(m.group('ver'), m.group('table'), m.group('player'), m.group('comments')))
 
-    s = auth('being_kind')
+    s = auth()
     arc_req = s.get('https://boardgamearena.com/gamereview/gamereview/requestTableArchive.html?table=' + table_id)
     if arc_req.status_code == 200:
         json = arc_req.json()
