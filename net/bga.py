@@ -1,4 +1,5 @@
 import itertools
+import json
 import re
 import time
 from collections import namedtuple
@@ -9,10 +10,32 @@ from typing import Generator, List
 import requests
 
 from core.domain import BgaTable, BgaReplayId
+from util.core import find_root_dir
 
 HANABI_GAME_ID = 1015
 
+
 def download_game_replay(game_ver, table_id, player_id, comments_id):
+    url = 'https://boardgamearena.com/archive/replay/' + game_ver + '/'
+    session = auth()
+    params = dict(
+        table=table_id,
+        player=player_id,
+        comments=comments_id
+    )
+    resp = session.get(url, params=params)
+    try:
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        raise SystemExit(err)
+    result = re.findall('gameui\.completesetup\(.*({"players".*}),.*\)', resp.text)
+    res_str = '[' + result[0] + ']'
+    res_json = json.loads(res_str)
+
+    filename = find_root_dir().joinpath('data', 'replays', f'{table_id}.json')
+    filename.parent.mkdir(parents=True, exist_ok=True)
+    with open(filename, "w") as file:
+        file.write(json.dumps(res_json[0]))
     pass
 
 
