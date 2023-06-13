@@ -47,11 +47,6 @@ def auth(acc='just_learning'):
             'cookie': 'PHPSESSID=vsg6m40cd2s7qhqlgth1ojda2l; _ga=GA1.1.864415604.1686604926; TournoiEnLigne_sso_user=just_learning%242%24neveh88879%40ozatvn.com; TournoiEnLigne_sso_id=ade5a2f84cf247904209e79cc0ee119b; TournoiEnLigneidt=UdqAoXo44Ah2TQl; TournoiEnLignetkt=MqpPjgdhveLmR8YSv7RpHQTNs1JUTKTQRsUjrR0Jr4xXUc85x5JPf90jyvAHhyJn; TournoiEnLigneid=ZEVk36z5D6JRJVB; TournoiEnLignetk=bVLBvxF4zKtuK4lT5Q9zLJsF1D9tU4EIo8QY9Zul7xNjopDv6kQfbDDzR43uxj1n; _ga_DWXD9R5L7D=GS1.1.1686604926.1.1.1686607436.43.0.0; PHPSESSID=og2pv95ks7udqn910pj7kpseco',
             'x-request-token': 'UdqAoXo44Ah2TQl',
             'x-requested-with': 'XMLHttpRequest'
-        },
-        'being_kind': {
-            'cookie': 'TournoiEnLigneid=4HZJFjV8pkYM1Fh; TournoiEnLignetk=98KOEFdPOEeEgT32XnMVqmel0vIrBKcMIQtC74Qjuqqb20wYX7qB4eTv8VVTTStd; PHPSESSID=i1c6srcbok8r8njngi6j1t9jmo; TournoiEnLigne_sso_user=being_kinder%243%24hakex62592%40hostovz.com; TournoiEnLigne_sso_id=87157a78fe5962929bb1d6f1e12d8ec2; __stripe_mid=b620ed68-ab57-4a79-9102-c01e692edbc6034949; _ga=GA1.1.44795320.1681067182; TournoiEnLigneidt=EjIk3btlMtlZr8s; TournoiEnLignetkt=9r864D6ZzrcNeIxFGjL85jpYTZiT08TGFVdZv0dL1573a77GFdAtj60WLf65y3Hk; _ga_DWXD9R5L7D=GS1.1.1686677685.72.1.1686677905.60.0.0; TournoiEnLigne_sso_user=just_learning%242%24neveh88879%40ozatvn.com; TournoiEnLigne_sso_id=ade5a2f84cf247904209e79cc0ee119b',
-            'x-request-token': 'EjIk3btlMtlZr8s',
-            'x-requested-with': 'XMLHttpRequest'
         }
     }
     s.headers = accs[acc]
