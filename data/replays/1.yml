@@ -1,0 +1,43 @@
+game:
+  settings:
+    mode: classic
+    six_color: no
+    black_powder: no
+    flamboyands: no
+    cards_in_hand: 6
+  players:
+  - id: player_a
+    rank: 100
+  - id: player_b
+    rank: 100
+  active_player: player_a
+  hands:
+    player_a: [r1, b5, g3, b1, b2, r3]
+    player_b: [r1, b4, g2, b1, w2, r3]
+  discard: []
+  deck: [g3, g4, b2, r1]
+  clues: 8
+  mistakes: 0
+  log:
+  - turn: 1
+    player: player_a
+    actions:
+    - type: clue
+      clue:
+        type: number
+        target_player: player_b
+        number: 1
+  - turn: 2
+    player: player_b
+    actions:
+    - type: play
+      play_pos: 0
+    - type: take
+      card: g3
+  - turn: 3
+    player: player_a
+    actions:
+    - type: play
+      play_pos: 0
+    - type: take
+      card: g4
