@@ -12,8 +12,8 @@ game:
     rank: 100
   active_player: player_a
   hands:
-    player_a: [r1, b5, g3, b1, b2, r3]
-    player_b: [r1, b4, g2, b1, w2, r3]
+    player_a: [r1, b5/b5, g3, b1/b, b2/b, r3]
+    player_b: [r1, b4/b, g2/2, b1, w2, r3]
   discard: []
   deck: [g3, g4, b2, r1]
   clues: 8
