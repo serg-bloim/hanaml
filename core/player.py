@@ -1,6 +1,7 @@
 import re
+import typing
 from collections import namedtuple
-from typing import List, Iterable, Dict, Callable
+from typing import List, Iterable, Dict, Callable, NamedTuple
 
 import colorama
 from yaml import safe_load
@@ -35,13 +36,28 @@ class Card(CardLike):
         return c
 
 
+NO_CARD = Card(None, None)
 Settings = namedtuple("Settings", "mode cards_in_hand six_color black_powder flamboyands",
                       defaults=[5, False, False, False])
 Player = namedtuple("Player", "id rank")
 PlayerHand = namedtuple("PlayerHand", "player hand")
-LogEntry = namedtuple("LogEntry", "turn player actions")
-LogAction = namedtuple("LogAction", "type play_pos card clue", defaults=[None] * 3)
-Clue = namedtuple("Clue", "type target_player color number", defaults=[None] * 4)
+
+
+class Clue(NamedTuple):
+    type: str = ''
+    target_player: str = ''
+    color: str = None
+    number: str = None
+
+
+class LogAction(NamedTuple):
+    type: str = ''
+    card_pos: int = 0
+    card: Card = None
+    clue: Clue = None
+
+
+LogEntry = typing.NamedTuple("LogEntry", turn=int, player=Player, actions=Iterable[LogAction])
 
 
 class Hand:
@@ -49,17 +65,23 @@ class Hand:
     def __init__(self, cards: Iterable[Card]) -> None:
         self.cards = list(cards)
         self.cards.reverse()
+        self.__init_size = len(self.cards)
 
     def peek(self, i: int):
-        return self.cards[i]
+        return self.cards[self.get_ind(i)]
 
     def append(self, card: Card):
+        self.cards.remove(NO_CARD)
         self.cards.append(card)
 
     def remove(self, i: int):
-        card = self.cards[i]
-        del self.cards[i]
+        ind = self.get_ind(i)
+        card = self.cards[ind]
+        self.cards[ind] = NO_CARD
         return card
+
+    def get_ind(self, i):
+        return self.__init_size - i
 
     def __getitem__(self, item):
         return self.peek(item)
@@ -76,6 +98,17 @@ class Hand:
     def __iter__(self):
         return self.iter_right()
 
+    def clue_color(self, color):
+        for c in self.cards:
+            if c.color == color:
+                c.clue.color = color
+
+    def clue_number(self, number):
+        number = str(number)
+        for c in self.cards:
+            if c.number == number:
+                c.clue.number = number
+
 
 class Replay:
     def __init__(self, settings: Settings, players: Dict[str, Player], active_player, hands: Dict[Player, Hand],
@@ -86,11 +119,11 @@ class Replay:
         self.players = players
         self.active_player = active_player
         self.hands = hands
-        self.discard = discard
-        self.deck = deck
+        self.discard: List[Card] = list(discard)
+        self.deck: List[Card] = list(reversed(deck))
         self.clues = clues
         self.mistakes = mistakes
-        self.log = log
+        self.log: Iterable[LogEntry] = log
 
 
 def read_cards(cards: List[str]) -> List[Card]:
@@ -114,12 +147,14 @@ def load_replay(filename) -> Replay:
 
         def read_log_action(la):
             la['clue'] = read_clue(la.get('clue') or {})
+            if 'card' in la:
+                la['card'] = Card.from_str(la['card'])
             return LogAction(**la)
 
         def read_log_entry(le):
             le['player'] = players[le['player']]
             le['actions'] = [read_log_action(la) for la in le['actions']]
-            LogEntry(**le)
+            return LogEntry(**le)
 
         def read_settings(settings):
             return Settings(**settings)
@@ -134,6 +169,8 @@ def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=Fa
         raise ValueError("Cannot both mask the card and print it's color")
 
     def print(card: Card):
+        if card is NO_CARD:
+            return ' ---- '
         colors = {
             'b': (colorama.Back.BLUE, colorama.Fore.BLACK),
             'r': (colorama.Back.RED, colorama.Fore.BLACK),
@@ -166,23 +203,11 @@ def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=Fa
     return print
 
 
-def print_replay(rep: Replay):
-    def card2str(card: Card):
-        colors = {
-            'b': (colorama.Back.BLUE, colorama.Fore.BLACK),
-            'r': (colorama.Back.RED, colorama.Fore.BLACK),
-            'g': (colorama.Back.GREEN, colorama.Fore.BLACK),
-            'w': (colorama.Back.WHITE, colorama.Fore.BLACK),
-            'y': (colorama.Back.YELLOW, colorama.Fore.BLACK),
-            'mc': (colorama.Back.MAGENTA, colorama.Fore.BLACK),
-        }
-
-        return ''.join(colors[card.color]) + f"{card.color:>2}{card.number} " + colorama.Style.RESET_ALL
-
+def run_replay(rep: Replay, mask_active=True):
     deck_printer = create_console_card_printer(color_only_clues=False, hide_clues=True)
     open_hand_printer = create_console_card_printer(color_only_clues=True)
     close_hand_printer = create_console_card_printer(mask=True)
-    hand_printers = {h: close_hand_printer if p == rep.active_player else open_hand_printer
+    hand_printers = {h: close_hand_printer if p == rep.active_player and mask_active else open_hand_printer
                      for p, h in
                      rep.hands.items()}
 
@@ -190,16 +215,55 @@ def print_replay(rep: Replay):
         printer = hand_printers[hand]
         return ' '.join(printer(c) for c in hand)
 
+    def deck2str(deck):
+        return ' '.join(deck_printer(c) for c in reversed(deck))
+
     print(f"Settings\n"
           f"Game mode: {rep.settings.mode}\n")
     print("Players:")
     for p in rep.players.values():
         print(f" - {p.id} ({p.rank})")
-
-    print("Turn 0\n")
-    print(f"Deck ({len(rep.deck)}): " + ' '.join(deck_printer(c) for c in rep.deck))
-    print()
     player_id_padding = 1 + max(len(p) for p in rep.players.keys())
-    for p, hand in rep.hands.items():
-        print(f"{p.id:{player_id_padding}} : {hand2str(hand)}")
-    pass
+    print()
+    print(f"Deck ({len(rep.deck)}): " + deck2str(rep.deck))
+
+    def print_game_state():
+        lines = []
+        for p, hand in rep.hands.items():
+            lines.append(f"{p.id:{player_id_padding}} : {hand2str(hand)}")
+        lines[0] += f'    Deck({len(rep.deck):2}): ' + deck2str(rep.deck)
+        lines[1] += f'    Discard:  ' + deck2str(rep.discard)
+        for l in lines:
+            print(l)
+
+    print("\nInit state")
+    print_game_state()
+
+    for turn in rep.log:
+        print(f"\n\nTurn {turn.turn}. {turn.player.id}'s turn")
+        pass
+        for a in turn.actions:
+            if a.type == 'clue':
+                print(f'{turn.player.id} clues {a.clue.target_player} '
+                      f'showing {a.clue.type} {a.clue.color or a.clue.number}')
+                hand = rep.hands[rep.players[a.clue.target_player]]
+                if a.clue.type == 'color':
+                    hand.clue_color(a.clue.color)
+                else:
+                    hand.clue_number(a.clue.number)
+            elif a.type == 'play':
+                card = rep.hands[turn.player].remove(a.card_pos)
+                print(f'{turn.player.id} plays his {a.card_pos}-th card({deck_printer(card)})')
+            elif a.type == 'discard':
+                card = rep.hands[turn.player].remove(a.card_pos)
+                print(f'{turn.player.id} discards his {a.card_pos}-th card({deck_printer(card)})')
+                rep.discard.append(card)
+                rep.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
+            elif a.type == 'take':
+                card = rep.deck.pop()
+                rep.hands[turn.player].append(card)
+                print(f'{turn.player.id} takes {deck_printer(card)} from the deck')
+            else:
+                raise ValueError(f'Turn action {a.type} is not supported')
+        print()
+        print_game_state()
