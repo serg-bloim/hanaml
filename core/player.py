@@ -123,7 +123,7 @@ class Replay:
         self.settings = settings
         self.players = players
         self.active_player = active_player
-        self.hands:Dict[Player, Hand] = hands
+        self.hands: Dict[Player, Hand] = hands
         self.discard: List[Card] = list(discard)
         self.deck: List[Card] = list(reversed(deck))
         self.clues = clues
@@ -188,7 +188,7 @@ class Simulation:
                     if a.clue.type == 'color':
                         hand.clue_color(a.clue.color)
                     else:
-                        hand.clue_number(a.clue.number)
+                        hand.clue_number(str(a.clue.number))
                 elif a.type == 'play':
                     card = rep.hands[turn.player].remove(a.card_pos)
                     self.__sim.last_played_card = card
@@ -265,12 +265,16 @@ def load_replay(filename) -> Replay:
             game[k] = read_cards(game[k])
 
         def read_clue(clue: dict):
+            num = clue.get('number', None)
+            if isinstance(num, int):
+                clue['number'] = str(num)
             return Clue(**clue)
 
         def read_log_action(la):
             la['clue'] = read_clue(la.get('clue') or {})
             if 'card' in la:
                 la['card'] = Card.from_str(la['card'])
+
             return LogAction(**la)
 
         def read_log_entry(le):
@@ -290,7 +294,8 @@ def load_replay(filename) -> Replay:
         return Replay(**game)
 
 
-def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False, no_card_str=' ---- ') -> Callable[[Card], str]:
+def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False, no_card_str=' ---- ') -> Callable[
+    [Card], str]:
     if mask and not color_only_clues:
         raise ValueError("Cannot both mask the card and print it's color")
 
@@ -375,9 +380,11 @@ def run_replay(rep: Replay, mask_active=True):
                 print(f'{turn.player().id} clues {a.descr().clue.target_player} '
                       f'showing {a.descr().clue.type} {a.descr().clue.color or a.descr().clue.number}')
             elif a.descr().type == 'play':
-                print(f'{turn.player().id} plays his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
+                print(
+                    f'{turn.player().id} plays his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
             elif a.descr().type == 'discard':
-                print(f'{turn.player().id} discards his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
+                print(
+                    f'{turn.player().id} discards his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
                 rep.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
             elif a.descr().type == 'take':
                 print(f'{turn.player().id} takes {deck_printer(simulation.last_drawn_card)} from the deck')

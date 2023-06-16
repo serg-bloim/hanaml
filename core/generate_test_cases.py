@@ -1,7 +1,9 @@
-from typing import NamedTuple
+import csv
+import itertools
+from typing import NamedTuple, List, Dict, Any, TextIO
 
 from core.player import Replay, Simulation, Hand, Card
-from util.core import count, first_or_none
+from util.core import count, first_or_none, save_csv_aligned
 
 
 def get_clue(t):
@@ -12,7 +14,10 @@ def get_clue(t):
 
 class Field(NamedTuple):
     name: str
-    shape: int = 1
+    type: str = 'str'
+    input: str = 'category'
+    shape: int = 0
+    input_encoding: str = 'auto'
 
 
 def generate_test_cases(game: Replay):
@@ -26,13 +31,13 @@ def generate_test_cases(game: Replay):
         other_player = next(p for p in game.players.values() if p is not active_player)
         active_hand: Hand = game.hands[active_player]
         other_hand = game.hands[other_player]
-        facts[Field('turn')] = t.number()
-        facts[Field('clues')] = game.clues
+        facts[Field('turn', type='int', input_encoding=None)] = t.number()
+        facts[Field('clues', type='int')] = game.clues
         facts[Field('action_type', shape=3)] = t.actions[0].descr().type
         clue = get_clue(t)
         facts[Field('clue_number', shape=5)] = clue and clue.number
         facts[Field('clue_color', shape=5)] = clue and clue.color
-        facts[Field('play_card', shape=5)] = t.actions[0].descr().card_pos
+        facts[Field('play_card', shape=5)] = str(t.actions[0].descr().card_pos)
         for i, c in enumerate(active_hand, start=1):
             c: Card
             pref = f'active_card_{i}'
@@ -46,10 +51,91 @@ def generate_test_cases(game: Replay):
             facts[Field(pref + '_clue_color', shape=5)] = c.clue.color
             facts[Field(pref + '_clue_number', shape=5)] = c.clue.number
         for color, stack in game.stacks.items():
-            facts[Field(f'stack_{color}')] = len(stack) / 5
+            facts[Field(f'stack_{color}', type='float')] = len(stack) / 5
         discard_cnt = count(game.discard)
         for c, t in cards_cnt.items():
             d = discard_cnt.get(c, 0)
             availability = 1 - d / t
-            facts[Field(f'avail_{c.color}{c.number}')] = availability
+            facts[Field(f'avail_{c.color}{c.number}', type='float', input_encoding=None)] = availability
     return turns
+
+
+__metadata_headers = ['field', 'type', 'input', 'shape', 'encoding']
+
+
+def save_test_cases(f: TextIO, data: List[Dict[Field, Any]], save_metadata=True):
+    if not data:
+        return
+    fields = list(data[0].keys())
+    if save_metadata:
+        headers = __metadata_headers
+        metadata = [[f.name, f.type, f.input, f.shape, f.input_encoding] for f in fields]
+        save_csv_aligned(f, metadata, headers)
+        f.write('\n')
+
+    headers = list(f for f in data[0].keys())
+    rows = [[r[h] for h in headers] for r in data]
+    save_csv_aligned(f, rows, [h.name for h in headers])
+
+
+def load_test_cases(f: TextIO):
+    def gen_blocks(iter):
+        has_data = True
+
+        def gen_single_continuous_block(iter):
+            class MyIter:
+                skip_empty = True
+
+                def __iter__(self):
+                    return self
+
+                def __next__(self):
+                    nonlocal has_data
+                    if self.skip_empty:
+                        self.skip_empty = False
+                        for el in iter:
+                            if el:
+                                return el
+                        else:
+                            has_data = False
+                    for r in iter:
+                        if r:
+                            return r
+                        break
+                    raise StopIteration
+
+            return MyIter()
+
+        while has_data:
+            block = gen_single_continuous_block(iter)
+            yield (([v if v else None for v in (v.strip() for v in r)] for r in block))
+
+    def read_fields(block):
+        return [Field(r[0], r[1], r[2], int(r[3]), r[4]) for r in block]
+
+    def convert_type(v, field):
+        if field.type == 'int':
+            return int(v)
+        if field.type == 'float':
+            return float(v)
+        return v
+
+    blocks = gen_blocks(csv.reader(f))
+    first_block = next(blocks)
+    headers = next(first_block)
+    if headers == __metadata_headers:
+        try:
+            fields = read_fields(first_block)
+        except Exception as e:
+            pass
+        first_block = next(blocks)
+        headers = next(first_block)
+    else:
+        fields = [Field(h) for h in headers]
+    fields_map = {f.name: f for f in fields}
+    test_cases = []
+    for block in itertools.chain([first_block], blocks):
+        for r in block:
+            vals = zip(r, headers)
+            test_cases.append({fields_map[h]: convert_type(v, fields_map[h]) for v, h in vals})
+    return test_cases, fields
