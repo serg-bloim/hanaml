@@ -41,6 +41,7 @@ class Card(CardLike):
 NO_CARD = Card(None, None, None)
 Settings = namedtuple("Settings", "mode cards_in_hand six_color black_powder flamboyands",
                       defaults=[5, False, False, False])
+
 Player = namedtuple("Player", "id rank")
 PlayerHand = namedtuple("PlayerHand", "player hand")
 
@@ -65,22 +66,22 @@ LogEntry = typing.NamedTuple("LogEntry", turn=int, player=Player, actions=Iterab
 class Hand:
 
     def __init__(self, cards: Iterable[Card]) -> None:
-        self.cards = list(cards)
-        self.cards.reverse()
-        self.__init_size = len(self.cards)
+        self.__cards = list(cards)
+        self.__cards.reverse()
+        self.__init_size = len(self.__cards)
 
     def peek(self, i: int):
-        return self.cards[self.get_ind(i)]
+        return self.__cards[self.get_ind(i)]
 
     def append(self, card: Card):
-        if NO_CARD in self.cards:
-            self.cards.remove(NO_CARD)
-        self.cards.append(card)
+        if NO_CARD in self.__cards:
+            self.__cards.remove(NO_CARD)
+        self.__cards.append(card)
 
     def remove(self, i: int):
         ind = self.get_ind(i)
-        card = self.cards[ind]
-        self.cards[ind] = NO_CARD
+        card = self.__cards[ind]
+        self.__cards[ind] = NO_CARD
         return card
 
     def get_ind(self, i):
@@ -93,22 +94,22 @@ class Hand:
         return self.remove(item)
 
     def iter_right(self):
-        return reversed(self.cards)
+        return reversed(self.__cards)
 
     def iter_left(self):
-        return iter(self.cards)
+        return iter(self.__cards)
 
     def __iter__(self):
         return self.iter_right()
 
     def clue_color(self, color):
-        for c in self.cards:
+        for c in self.__cards:
             if c.color == color:
                 c.clue.color = color
 
     def clue_number(self, number):
         number = str(number)
-        for c in self.cards:
+        for c in self.__cards:
             if c.number == number:
                 c.clue.number = number
 
@@ -122,12 +123,20 @@ class Replay:
         self.settings = settings
         self.players = players
         self.active_player = active_player
-        self.hands = hands
+        self.hands:Dict[Player, Hand] = hands
         self.discard: List[Card] = list(discard)
         self.deck: List[Card] = list(reversed(deck))
         self.clues = clues
         self.mistakes = mistakes
         self.log: Iterable[LogEntry] = list(log)
+
+    def all_cards(self):
+        yield from self.deck
+        yield from self.discard
+        for h in self.hands.values():
+            yield from h
+        for s in self.stacks.values():
+            yield from s
 
 
 class Completable:
