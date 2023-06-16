@@ -18,6 +18,12 @@ game:
   deck: [b3, w4, g3, y1, b4, r1, r4, g4, g5, y5, y1, b4, w1, y4, y4, g2, r4, g1, r5, y3, r3, g1, b1, r2, w3, r1, y2, w3, b2, g4, y1, b3, w5, g3, b2, w1, w2, g2, g1, r3]
   clues: 8
   mistakes: 0
+  stacks:
+   r: []
+   y: []
+   g: []
+   b: []
+   w: []
   log:
   - turn: 1
     player: player_b

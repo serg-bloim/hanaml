@@ -20,9 +20,10 @@ class CardLike:
 
 
 class Card(CardLike):
-    def __init__(self, color, number) -> None:
+    def __init__(self, color, number, order) -> None:
         super().__init__(color, number)
         self.clue = CardLike()
+        self.order = order
 
     @classmethod
     def from_str(cls, s: str):
@@ -30,13 +31,14 @@ class Card(CardLike):
                          s.lower())
         if not m:
             raise ValueError(f"`{s}` is not a valid card id")
-        c = Card(m.group('color'), m.group('number'))
+        n = m.group('number')
+        c = Card(m.group('color'), n, int(n))
         c.clue.color = m.group('c_color')
         c.clue.number = m.group('c_number')
         return c
 
 
-NO_CARD = Card(None, None)
+NO_CARD = Card(None, None, None)
 Settings = namedtuple("Settings", "mode cards_in_hand six_color black_powder flamboyands",
                       defaults=[5, False, False, False])
 Player = namedtuple("Player", "id rank")
@@ -71,7 +73,8 @@ class Hand:
         return self.cards[self.get_ind(i)]
 
     def append(self, card: Card):
-        self.cards.remove(NO_CARD)
+        if NO_CARD in self.cards:
+            self.cards.remove(NO_CARD)
         self.cards.append(card)
 
     def remove(self, i: int):
@@ -112,9 +115,10 @@ class Hand:
 
 class Replay:
     def __init__(self, settings: Settings, players: Dict[str, Player], active_player, hands: Dict[Player, Hand],
-                 discard, deck, clues,
+                 discard, deck, stacks, clues,
                  mistakes, log) -> None:
         super().__init__()
+        self.stacks: Dict[str, List[Card]] = stacks
         self.settings = settings
         self.players = players
         self.active_player = active_player
@@ -123,7 +127,116 @@ class Replay:
         self.deck: List[Card] = list(reversed(deck))
         self.clues = clues
         self.mistakes = mistakes
-        self.log: Iterable[LogEntry] = log
+        self.log: Iterable[LogEntry] = list(log)
+
+
+class Completable:
+
+    def __init__(self) -> None:
+        self.__done = False
+
+    def complete(self):
+        if self.__done:
+            return False
+        self._exec()
+        self.__done = True
+        return True
+
+    def _exec(self):
+        pass
+
+
+class NotPlayableCard(ValueError):
+    pass
+
+
+class Simulation:
+    last_drawn_card: Card
+    last_played_card: Card
+
+    def __init__(self, replay: Replay) -> None:
+        self.replay = replay
+
+    def simulate(self):
+
+        class TurnAction(Completable):
+
+            def __init__(self, la: LogAction, le: LogEntry, sim: Simulation) -> None:
+                super().__init__()
+                self.__sim = sim
+                self.__turn = le
+                self.__log_action = la
+
+            def descr(self):
+                return self.__log_action
+
+            def _exec(self):
+                a = self.__log_action
+                rep = self.__sim.replay
+                turn = self.__turn
+                if a.type == 'clue':
+                    hand = rep.hands[rep.players[a.clue.target_player]]
+                    if a.clue.type == 'color':
+                        hand.clue_color(a.clue.color)
+                    else:
+                        hand.clue_number(a.clue.number)
+                elif a.type == 'play':
+                    card = rep.hands[turn.player].remove(a.card_pos)
+                    self.__sim.last_played_card = card
+                    try:
+                        self.__sim.play(card)
+                    except NotPlayableCard:
+                        pass
+                elif a.type == 'discard':
+                    card = rep.hands[turn.player].remove(a.card_pos)
+                    self.__sim.last_played_card = card
+                    self.__sim.discard(card)
+                elif a.type == 'take':
+                    card = rep.deck.pop()
+                    self.__sim.last_drawn_card = card
+                    rep.hands[turn.player].append(card)
+                else:
+                    raise ValueError(f'Turn action {a.type} is not supported')
+
+        class Turn(Completable):
+
+            def __init__(self, log_entry: LogEntry, sim: Simulation) -> None:
+                super().__init__()
+                self.__log_entry = log_entry
+                self.actions = tuple(TurnAction(a, log_entry, sim) for a in log_entry.actions)
+
+            def number(self):
+                return self.__log_entry.turn
+
+            def _exec(self):
+                for a in self.actions:
+                    a.complete()
+
+            def player(self):
+                return self.__log_entry.player
+
+        for t in self.replay.log:
+            turn = Turn(t, self)
+            yield turn
+            turn.complete()
+
+    def play(self, card: Card):
+        stack = self.replay.stacks[card.color]
+        expected_order = stack[-1].order + 1 if stack else 1
+        err = None
+        if expected_order > 5:
+            err = NotPlayableCard("The stack is full")
+        if card.order != expected_order:
+            err = NotPlayableCard(f"Number '{expected_order}' expected, but got '{card.number}'")
+        if err:
+            self.discard(card)
+            self.replay.mistakes += 1
+            raise err
+        stack.append(card)
+
+    def discard(self, card):
+        self.replay.discard.append(card)
+        self.replay.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
 
 
 def read_cards(cards: List[str]) -> List[Card]:
@@ -159,18 +272,22 @@ def load_replay(filename) -> Replay:
         def read_settings(settings):
             return Settings(**settings)
 
+        def read_stacks(stacks):
+            return {c: read_cards(stack) for c, stack in stacks.items()}
+
         game['settings'] = read_settings(game['settings'])
+        game['stacks'] = read_stacks(game['stacks'])
         game['log'] = [read_log_entry(l) for l in game['log']]
         return Replay(**game)
 
 
-def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False) -> Callable[[Card], str]:
+def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False, no_card_str=' ---- ') -> Callable[[Card], str]:
     if mask and not color_only_clues:
         raise ValueError("Cannot both mask the card and print it's color")
 
     def print(card: Card):
         if card is NO_CARD:
-            return ' ---- '
+            return no_card_str
         colors = {
             'b': (colorama.Back.BLUE, colorama.Fore.BLACK),
             'r': (colorama.Back.RED, colorama.Fore.BLACK),
@@ -204,7 +321,7 @@ def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=Fa
 
 
 def run_replay(rep: Replay, mask_active=True):
-    deck_printer = create_console_card_printer(color_only_clues=False, hide_clues=True)
+    deck_printer = create_console_card_printer(color_only_clues=False, hide_clues=True, no_card_str='-XX-')
     open_hand_printer = create_console_card_printer(color_only_clues=True)
     close_hand_printer = create_console_card_printer(mask=True)
     hand_printers = {h: close_hand_printer if p == rep.active_player and mask_active else open_hand_printer
@@ -231,7 +348,8 @@ def run_replay(rep: Replay, mask_active=True):
         lines = []
         for p, hand in rep.hands.items():
             lines.append(f"{p.id:{player_id_padding}} : {hand2str(hand)}")
-        lines[0] += f'    Deck({len(rep.deck):2}): ' + deck2str(rep.deck)
+        # lines[0] += f'    Deck({len(rep.deck):2}): ' + deck2str(rep.deck)
+        lines[0] += f'    Stacks :  ' + deck2str([(s or [NO_CARD])[-1] for s in reversed(rep.stacks.values())])
         lines[1] += f'    Discard:  ' + deck2str(rep.discard)
         for l in lines:
             print(l)
@@ -239,31 +357,50 @@ def run_replay(rep: Replay, mask_active=True):
     print("\nInit state")
     print_game_state()
 
-    for turn in rep.log:
-        print(f"\n\nTurn {turn.turn}. {turn.player.id}'s turn")
-        pass
+    simulation = Simulation(rep)
+    for turn in simulation.simulate():
+        print(f"Before turn {turn.number()}")
         for a in turn.actions:
-            if a.type == 'clue':
-                print(f'{turn.player.id} clues {a.clue.target_player} '
-                      f'showing {a.clue.type} {a.clue.color or a.clue.number}')
-                hand = rep.hands[rep.players[a.clue.target_player]]
-                if a.clue.type == 'color':
-                    hand.clue_color(a.clue.color)
-                else:
-                    hand.clue_number(a.clue.number)
-            elif a.type == 'play':
-                card = rep.hands[turn.player].remove(a.card_pos)
-                print(f'{turn.player.id} plays his {a.card_pos}-th card({deck_printer(card)})')
-            elif a.type == 'discard':
-                card = rep.hands[turn.player].remove(a.card_pos)
-                print(f'{turn.player.id} discards his {a.card_pos}-th card({deck_printer(card)})')
-                rep.discard.append(card)
+            a.complete()
+            if a.descr().type == 'clue':
+                print(f'{turn.player().id} clues {a.descr().clue.target_player} '
+                      f'showing {a.descr().clue.type} {a.descr().clue.color or a.descr().clue.number}')
+            elif a.descr().type == 'play':
+                print(f'{turn.player().id} plays his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
+            elif a.descr().type == 'discard':
+                print(f'{turn.player().id} discards his {a.descr().card_pos}-th card({deck_printer(simulation.last_played_card)})')
                 rep.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
-            elif a.type == 'take':
-                card = rep.deck.pop()
-                rep.hands[turn.player].append(card)
-                print(f'{turn.player.id} takes {deck_printer(card)} from the deck')
+            elif a.descr().type == 'take':
+                print(f'{turn.player().id} takes {deck_printer(simulation.last_drawn_card)} from the deck')
             else:
-                raise ValueError(f'Turn action {a.type} is not supported')
-        print()
+                raise ValueError(f'Turn action {a.descr().type} is not supported')
         print_game_state()
+        print(f"After turn {turn.number()}")
+
+    # for turn in rep.log:
+    #     print(f"\n\nTurn {turn.turn}. {turn.player.id}'s turn")
+    #     for a in turn.actions:
+    #         if a.type == 'clue':
+    #             print(f'{turn.player.id} clues {a.clue.target_player} '
+    #                   f'showing {a.clue.type} {a.clue.color or a.clue.number}')
+    #             hand = rep.hands[rep.players[a.clue.target_player]]
+    #             if a.clue.type == 'color':
+    #                 hand.clue_color(a.clue.color)
+    #             else:
+    #                 hand.clue_number(a.clue.number)
+    #         elif a.type == 'play':
+    #             card = rep.hands[turn.player].remove(a.card_pos)
+    #             print(f'{turn.player.id} plays his {a.card_pos}-th card({deck_printer(card)})')
+    #         elif a.type == 'discard':
+    #             card = rep.hands[turn.player].remove(a.card_pos)
+    #             print(f'{turn.player.id} discards his {a.card_pos}-th card({deck_printer(card)})')
+    #             rep.discard.append(card)
+    #             rep.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
+    #         elif a.type == 'take':
+    #             card = rep.deck.pop()
+    #             rep.hands[turn.player].append(card)
+    #             print(f'{turn.player.id} takes {deck_printer(card)} from the deck')
+    #         else:
+    #             raise ValueError(f'Turn action {a.type} is not supported')
+    #     print()
+    #     print_game_state()
