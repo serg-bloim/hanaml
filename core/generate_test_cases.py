@@ -1,5 +1,6 @@
 import csv
 import itertools
+from types import NoneType
 from typing import NamedTuple, List, Dict, Any, TextIO
 
 from core.player import Replay, Simulation, Hand, Card
@@ -17,7 +18,7 @@ class Field(NamedTuple):
     type: str = 'str'
     input: str = 'category'
     shape: int = 0
-    input_encoding: str = 'auto'
+    input_encoding: str | NoneType = 'auto'
 
 
 def generate_test_cases(game: Replay):
@@ -31,32 +32,32 @@ def generate_test_cases(game: Replay):
         other_player = next(p for p in game.players.values() if p is not active_player)
         active_hand: Hand = game.hands[active_player]
         other_hand = game.hands[other_player]
-        facts[Field('turn', type='int', input_encoding=None)] = t.number()
-        facts[Field('clues', type='int')] = game.clues
+        facts[Field('turn', type='int', input='int', input_encoding=None)] = t.number()
+        facts[Field('clues', type='int', input='int')] = game.clues
         facts[Field('action_type', shape=3)] = t.actions[0].descr().type
         clue = get_clue(t)
-        facts[Field('clue_number', shape=5)] = clue and clue.number
-        facts[Field('clue_color', shape=5)] = clue and clue.color
-        facts[Field('play_card', shape=5)] = str(t.actions[0].descr().card_pos)
+        facts[Field('clue_number')] = clue and clue.number
+        facts[Field('clue_color')] = clue and clue.color
+        facts[Field('play_card')] = str(t.actions[0].descr().card_pos)
         for i, c in enumerate(active_hand, start=1):
             c: Card
             pref = f'active_card_{i}'
-            facts[Field(pref + '_clue_color', shape=5)] = c.clue.color
-            facts[Field(pref + '_clue_number', shape=5)] = c.clue.number
+            facts[Field(pref + '_clue_color')] = c.clue.color
+            facts[Field(pref + '_clue_number')] = c.clue.number
         for i, c in enumerate(other_hand, start=1):
             c: Card
             pref = f'opponent_card_{i}'
-            facts[Field(pref + '_color', shape=5)] = c.color
-            facts[Field(pref + '_number', shape=5)] = c.number
-            facts[Field(pref + '_clue_color', shape=5)] = c.clue.color
-            facts[Field(pref + '_clue_number', shape=5)] = c.clue.number
+            facts[Field(pref + '_color')] = c.color
+            facts[Field(pref + '_number')] = c.number
+            facts[Field(pref + '_clue_color')] = c.clue.color
+            facts[Field(pref + '_clue_number')] = c.clue.number
         for color, stack in game.stacks.items():
-            facts[Field(f'stack_{color}', type='float')] = len(stack) / 5
+            facts[Field(f'stack_{color}', type='int')] = len(stack)
         discard_cnt = count(game.discard)
         for c, t in cards_cnt.items():
             d = discard_cnt.get(c, 0)
             availability = 1 - d / t
-            facts[Field(f'avail_{c.color}{c.number}', type='float', input_encoding=None)] = availability
+            facts[Field(f'avail_{c.color}{c.number}', type='float', input='float', input_encoding=None)] = availability
     return turns
 
 
@@ -123,6 +124,7 @@ def load_test_cases(f: TextIO):
     blocks = gen_blocks(csv.reader(f))
     first_block = next(blocks)
     headers = next(first_block)
+    fields = []
     if headers == __metadata_headers:
         try:
             fields = read_fields(first_block)
