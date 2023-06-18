@@ -4,3 +4,4 @@ colorama
 numpy
 pandas
 tensorflow-cpu
+pydot

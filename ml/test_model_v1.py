@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 from pandas import Series
@@ -8,17 +9,20 @@ from core.generate_test_cases import load_test_cases, Encoding, Field, to_dtype
 from util.core import find_root_dir
 
 
-def df_to_dataset(dataframe, shuffle=True, batch_size=5, target_name='target'):
-    df = dataframe.copy()
+def df_to_dataset(df: pd.DataFrame, shuffle=True, batch_size=5, target_name='target'):
+    df = df.copy()
     labels = df.pop(target_name)
+    label_lookup = tf.keras.layers.StringLookup()
+    label_lookup.adapt(labels)
+    numeric_labels = label_lookup(labels)
     value: Series
-    df = {key: value.to_frame() for key, value in dataframe.items()}
-    ds = tf.data.Dataset.from_tensor_slices((df, labels))
+    df = {key: value.to_frame() for key, value in df.items()}
+    ds = tf.data.Dataset.from_tensor_slices((df, numeric_labels))
     if shuffle:
-        ds = ds.shuffle(buffer_size=len(dataframe))
+        ds = ds.shuffle(buffer_size=len(df))
     ds = ds.batch(batch_size)
     ds = ds.prefetch(batch_size)
-    return ds
+    return ds, label_lookup
 
 
 def get_normalization_layer(field, ds):
@@ -33,9 +37,10 @@ def get_normalization_layer(field, ds):
     return normalizer
 
 
-def create_input_pipeline(field: Field, ds):
+def create_input_pipeline(field: Field, ds: tf.data.Dataset):
     dtype = to_dtype(field.type)
     input = tf.keras.Input(shape=(1,), name=field.name, dtype=dtype)
+    tf.keras.layers.InputLayer(input_shape=(1,), name=field.name, dtype=dtype)
     index = None
     encoded = None
     enc = field.get_encoding()
@@ -51,7 +56,8 @@ def create_input_pipeline(field: Field, ds):
         feature_ds = ds.map(lambda x, y: x[field.name])
         index.adapt(feature_ds)
 
-        encoded = tf.keras.layers.CategoryEncoding(num_tokens=index.vocabulary_size())(index(input))
+        encoded_f = lambda x: tf.keras.layers.CategoryEncoding(num_tokens=index.vocabulary_size())(index(x))
+        encoded = encoded_f(input)
     elif enc == Encoding.NORMALIZE:
         encoded = tf.keras.layers.Normalization(axis=None)
         feature_ds = ds.map(lambda x, y: x[field.name])
@@ -78,7 +84,7 @@ class MyTestCase(unittest.TestCase):
 
         df.fillna('NA', inplace=True)
         batch_size = 5
-        train_ds = df_to_dataset(df, batch_size=batch_size, target_name='action_type')
+        train_ds, label_enc = df_to_dataset(df, batch_size=batch_size, target_name='action_type')
         [(train_features, label_batch)] = train_ds.take(1)
         print('Every feature:', list(train_features.keys()))
         print('A batch of turns:', train_features['active_card_1_clue_color'])
@@ -94,11 +100,20 @@ class MyTestCase(unittest.TestCase):
         all_features = tf.keras.layers.concatenate(encoded_features)
         x = tf.keras.layers.Dense(32, activation="relu")(all_features)
         x = tf.keras.layers.Dropout(0.5)(x)
-        output = tf.keras.layers.Dense(1)(x)
+        output = tf.keras.layers.Dense(label_enc.vocabulary_size(), activation='softmax')(x)
         model = tf.keras.Model(all_inputs, output)
         model.compile(optimizer='adam',
-                      loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+                      loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=["accuracy"])
+        tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True)
+        epochs = 10
+        model.fit(train_ds, epochs=epochs)
+        model.save(find_root_dir().joinpath(f'model/model_v1_{epochs}'))
+        loss, accuracy = model.evaluate(train_ds)
+        print("Accuracy", accuracy)
+        predictions = model.predict(train_ds)
+        predictions = [np.argmax(x) for x in predictions]
+        print(predictions)
         pass
 
     def test_from_tensor_slices(self):
