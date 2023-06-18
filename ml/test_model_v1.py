@@ -2,6 +2,7 @@ import unittest
 
 import numpy as np
 import pandas as pd
+import tabulate
 import tensorflow as tf
 from pandas import Series
 
@@ -42,7 +43,7 @@ def create_input_pipeline(field: Field, ds: tf.data.Dataset):
     input = tf.keras.Input(shape=(1,), name=field.name, dtype=dtype)
     tf.keras.layers.InputLayer(input_shape=(1,), name=field.name, dtype=dtype)
     index = None
-    encoded = None
+    encoded = input
     enc = field.get_encoding()
 
     if enc == Encoding.CATEGORY:
@@ -62,29 +63,15 @@ def create_input_pipeline(field: Field, ds: tf.data.Dataset):
         encoded = tf.keras.layers.Normalization(axis=None)
         feature_ds = ds.map(lambda x, y: x[field.name])
         index.adapt(feature_ds)
+    elif enc == Encoding.AS_IS and field.type == 'int':
+        encoded = tf.cast(input, dtype='float32')
+
     return input, encoded
 
 
 class MyTestCase(unittest.TestCase):
     def test_model_v1(self):
-        tc_file = next((find_root_dir() / f'data/testcases/').glob('*.tcsv'))
-        with open(tc_file, 'r') as f:
-            turns, fields = load_test_cases(f)
-        fields_map = {f.name: f for f in fields}
-        df = pd.DataFrame(turns)
-        columns2remove = 'clue_number clue_color play_card'.split()
-        df = df.drop(columns2remove, axis=1)
-        for f in fields:
-            # temporarily remove all non string fields
-            if f.type != 'str':
-                if f.name in df:
-                    df.drop(f.name, inplace=True, axis=1)
-                else:
-                    pass
-
-        df.fillna('NA', inplace=True)
-        batch_size = 5
-        train_ds, label_enc = df_to_dataset(df, batch_size=batch_size, target_name='action_type')
+        train_ds, fields_map, label_enc = self.create_data()
         [(train_features, label_batch)] = train_ds.take(1)
         print('Every feature:', list(train_features.keys()))
         print('A batch of turns:', train_features['active_card_1_clue_color'])
@@ -106,7 +93,7 @@ class MyTestCase(unittest.TestCase):
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=["accuracy"])
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True)
-        epochs = 10
+        epochs = 1000
         model.fit(train_ds, epochs=epochs)
         model.save(find_root_dir().joinpath(f'model/model_v1_{epochs}'))
         loss, accuracy = model.evaluate(train_ds)
@@ -114,7 +101,32 @@ class MyTestCase(unittest.TestCase):
         predictions = model.predict(train_ds)
         predictions = [np.argmax(x) for x in predictions]
         print(predictions)
-        pass
+        labels = [l for f, l in train_ds.unbatch().as_numpy_iterator()]
+        lvocab = label_enc.get_vocabulary()
+        data = [[lvocab[x] for x in [l, p]] for l, p in zip(labels, predictions)]
+        print(tabulate.tabulate(data, headers='actual, predicted'))
+
+    def test_run_existing_models(self):
+        output =[]
+        for model_dir in find_root_dir().joinpath(f'model').glob("model_v1*"):
+            model = tf.keras.models.load_model(model_dir)
+            data, *_ = self.create_data()
+            loss, accuracy = model.evaluate(data)
+            output.append([model_dir.name, loss, accuracy])
+        print(tabulate.tabulate(output, headers="Name,Loss, Accuracy"))
+
+    def create_data(self):
+        tc_file = next((find_root_dir() / f'data/testcases/').glob('*.tcsv'))
+        with open(tc_file, 'r') as f:
+            turns, fields = load_test_cases(f)
+        fields_map = {f.name: f for f in fields}
+        df = pd.DataFrame(turns)
+        columns2remove = 'clue_number clue_color play_card'.split()
+        df = df.drop(columns2remove, axis=1)
+        df.fillna('NA', inplace=True)
+        batch_size = 5
+        train_ds, label_enc = df_to_dataset(df, batch_size=batch_size, target_name='action_type')
+        return train_ds, fields_map, label_enc
 
     def test_from_tensor_slices(self):
         ds = tf.data.Dataset.from_tensor_slices(([1, 2, 3], [4, 5, 6]))

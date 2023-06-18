@@ -56,7 +56,7 @@ def generate_test_cases(game: Replay):
         other_player = next(p for p in game.players.values() if p is not active_player)
         active_hand: Hand = game.hands[active_player]
         other_hand = game.hands[other_player]
-        facts[Field('turn', type='int', input='int', input_encoding=None)] = t.number()
+        facts[Field('turn', type='int', input='int', input_encoding=Encoding.AS_IS)] = t.number()
         facts[Field('clues', type='int', input='int')] = game.clues
         facts[Field('action_type', shape=3)] = t.actions[0].descr().type
         clue = get_clue(t)
@@ -81,7 +81,7 @@ def generate_test_cases(game: Replay):
         for c, t in cards_cnt.items():
             d = discard_cnt.get(c, 0)
             availability = 1 - d / t
-            facts[Field(f'avail_{c.color}{c.number}', type='float', input='float', input_encoding=None)] = availability
+            facts[Field(f'avail_{c.color}{c.number}', type='float', input='float', input_encoding=Encoding.AS_IS)] = availability
     return turns
 
 
@@ -136,7 +136,7 @@ def load_test_cases(f: TextIO, convert_fields_to_str=True):
             yield (([v if v else None for v in (v.strip() for v in r)] for r in block))
 
     def read_fields(block):
-        return [Field(r[0], r[1], r[2], int(r[3]), r[4]) for r in block]
+        return [Field(r[0], r[1], r[2], int(r[3]), Encoding(r[4])) for r in block]
 
     def convert_type(v, field):
         if field.type == 'int':
