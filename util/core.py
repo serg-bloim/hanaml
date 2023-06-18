@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Iterable, Dict, TypeVar, Union, Mapping, TextIO, List
 
+import numpy as np
+
 
 def find_root_dir():
     d = Path.cwd()
@@ -58,3 +60,11 @@ def __generate_csv_aligned(data: Mapping[str, Iterable] | Iterable[Iterable], he
 
 def save_csv_aligned(f: TextIO, data: Mapping[str, Iterable] | Iterable[Iterable], headers: Iterable[str] = None):
     f.writelines(l + '\n' for l in __generate_csv_aligned(data, headers))
+
+
+def wrap_list(el):
+    return [el]
+
+
+def wrap_np_array(el):
+    return np.array([el])

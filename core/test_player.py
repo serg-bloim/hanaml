@@ -29,7 +29,7 @@ class MyTestCase(unittest.TestCase):
         with open(tc_file, 'w') as f:
             save_test_cases(f, turns)
         with open(tc_file, 'r') as f:
-            turns2, fields = load_test_cases(f)
+            turns2, fields = load_test_cases(f, convert_fields_to_str=False)
         self.assertEqual(turns, turns2)
 
 

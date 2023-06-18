@@ -1,6 +1,6 @@
 import csv
 import itertools
-from types import NoneType
+from enum import StrEnum, auto
 from typing import NamedTuple, List, Dict, Any, TextIO
 
 from core.player import Replay, Simulation, Hand, Card
@@ -13,12 +13,36 @@ def get_clue(t):
         return action.descr().clue
 
 
+def to_dtype(type: str):
+    return {
+        'str': 'string',
+        'int': 'int32',
+        'float': 'float32'
+    }[type]
+
+
+class Encoding(StrEnum):
+    AUTO = auto()
+    AS_IS = auto()
+    CATEGORY = auto()
+    NORMALIZE = auto()
+
+
 class Field(NamedTuple):
     name: str
     type: str = 'str'
     input: str = 'category'
     shape: int = 0
-    input_encoding: str | NoneType = 'auto'
+    input_encoding: Encoding = Encoding.AUTO
+
+    def get_encoding(self) -> Encoding:
+        if self.input_encoding == Encoding.AUTO:
+            return {
+                'str': Encoding.CATEGORY,
+                'int': Encoding.AS_IS,
+                'float': Encoding.NORMALIZE
+            }[self.type]
+        return self.input_encoding
 
 
 def generate_test_cases(game: Replay):
@@ -79,7 +103,7 @@ def save_test_cases(f: TextIO, data: List[Dict[Field, Any]], save_metadata=True)
     save_csv_aligned(f, rows, [h.name for h in headers])
 
 
-def load_test_cases(f: TextIO):
+def load_test_cases(f: TextIO, convert_fields_to_str=True):
     def gen_blocks(iter):
         has_data = True
 
@@ -135,9 +159,13 @@ def load_test_cases(f: TextIO):
     else:
         fields = [Field(h) for h in headers]
     fields_map = {f.name: f for f in fields}
+
+    def pick_field(name):
+        return name if convert_fields_to_str else fields_map[name]
+
     test_cases = []
     for block in itertools.chain([first_block], blocks):
         for r in block:
             vals = zip(r, headers)
-            test_cases.append({fields_map[h]: convert_type(v, fields_map[h]) for v, h in vals})
+            test_cases.append({pick_field(h): convert_type(v, fields_map[h]) for v, h in vals})
     return test_cases, fields
