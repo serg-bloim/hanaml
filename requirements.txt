@@ -5,3 +5,4 @@ numpy
 pandas
 tensorflow-cpu
 pydot
+selenium

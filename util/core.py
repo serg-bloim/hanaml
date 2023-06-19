@@ -68,3 +68,7 @@ def wrap_list(el):
 
 def wrap_np_array(el):
     return np.array([el])
+
+
+def on_off(on):
+    return on and 'on' or 'off'
