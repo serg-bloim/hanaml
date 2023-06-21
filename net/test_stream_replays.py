@@ -1,8 +1,8 @@
 import unittest
 from collections import namedtuple
 
+from core.domain import read_player_tables_csv, write_player_tables_csv
 from net.bga import stream_player_tables, HANABI_GAME_ID, get_table_site_ver
-from util.bga import read_player_tables_csv, write_player_tables_csv
 from util.core import find_root_dir
 
 
@@ -13,20 +13,6 @@ class BGATestCase(unittest.TestCase):
         for t in tables:
             print(t)
         self.assertEqual(61, len(tables))
-
-    def test_save_replays(self):
-        accs = ['93258705']
-        override = False
-        for aid in accs:
-            filename = find_root_dir().joinpath('data', 'tables', f'hanabi_table_{aid}.csv')
-            if filename.exists() and not override:
-                print(f'file for user `{aid}` exists')
-                continue
-            tables = list(stream_player_tables(aid, HANABI_GAME_ID))
-
-            filename.parent.mkdir(parents=True, exist_ok=True)
-            if tables:
-                write_player_tables_csv(filename, tables)
 
     def test_update_site_ver(self):
         tables_dir = find_root_dir().joinpath('data', 'tables')

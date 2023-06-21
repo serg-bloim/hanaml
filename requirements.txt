@@ -6,3 +6,5 @@ pandas
 tensorflow-cpu
 pydot
 selenium
+plotly
+progressbar2

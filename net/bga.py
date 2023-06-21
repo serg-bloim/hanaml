@@ -2,7 +2,6 @@ import itertools
 import json
 import re
 import time
-from collections import namedtuple
 from functools import cache
 from html.parser import HTMLParser
 from typing import Generator, List
@@ -59,17 +58,19 @@ def auth(acc='just_learning'):
     return s
 
 
-def stream_player_tables(player_id, game_id, finished=0) -> Generator[BgaTable, None, None]:
+def stream_player_tables(player_id, game_id, finished=0, delay=1) -> Generator[BgaTable, None, None]:
     session = auth()
     params = dict(
         player=player_id,
         finished=finished,
         updateStats=0
     )
+    print(f"Downloading table list from https://boardgamearena.com/gamestats?opponent_id=0&game_id=1015&finished=0&player={player_id}")
     if game_id:
         params['game_id'] = game_id
 
     def http_call(page):
+        time.sleep(delay)
         params['page'] = page
         resp = session.get('https://boardgamearena.com/gamestats/gamestats/getGames.html', params=params)
         if resp.status_code == 200:
@@ -118,3 +119,10 @@ def get_replay_links(table_id) -> List[BgaReplayId]:
             html = s.get(f'https://boardgamearena.com/gamereview?table={table_id}&refreshtemplate=1').text
             MyParser().feed(html)
             return replays
+
+
+def lookup_player_id(name: str):
+    resp = auth().post('https://boardgamearena.com/player/player/findPlayersByQuery.html', {'query': name},
+                       headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    json = resp.json()
+    return json['data']['data']
