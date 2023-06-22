@@ -18,6 +18,9 @@ class CardLike:
     def has_number(self):
         return self.number is not None
 
+    def __repr__(self) -> str:
+        return f"{self.color}{self.number}"
+
 
 class Card(CardLike):
     def __init__(self, color, number, order) -> None:
@@ -58,6 +61,7 @@ class LogAction(NamedTuple):
     card_pos: int = 0
     card: Card = None
     clue: Clue = None
+    add_clue: bool | None = None
 
 
 LogEntry = typing.NamedTuple("LogEntry", turn=int, player=Player, actions=Iterable[LogAction])
@@ -184,6 +188,7 @@ class Simulation:
                 rep = self.__sim.replay
                 turn = self.__turn
                 if a.type == 'clue':
+                    self.__sim.replay.clues -= 1
                     hand = rep.hands[rep.players[a.clue.target_player]]
                     if a.clue.type == 'color':
                         hand.clue_color(a.clue.color)
@@ -196,12 +201,15 @@ class Simulation:
                         self.__sim.play(card)
                     except NotPlayableCard:
                         pass
+                    if a.add_clue:
+                        self.__sim.replay.clues += 1
                 elif a.type == 'discard':
                     card = rep.hands[turn.player].remove(a.card_pos)
                     self.__sim.last_played_card = card
                     self.__sim.discard(card)
+                    self.__sim.replay.clues += 1
                 elif a.type == 'take':
-                    card = rep.deck.pop()
+                    card = a.card or rep.deck.pop()
                     self.__sim.last_drawn_card = card
                     rep.hands[turn.player].append(card)
                 else:
@@ -255,43 +263,47 @@ def read_cards(cards: List[str]) -> List[Card]:
 def load_replay(filename) -> Replay:
     with open(filename, 'r') as f:
         yml = safe_load(f)
-        game = yml['game']
-        players = [Player(**p) for p in game['players']]
-        players = {p.id: p for p in players}
-        game['players'] = players
-        game['active_player'] = players[game['active_player']]
-        game['hands'] = {players[pid]: Hand(read_cards(hand)) for pid, hand in game['hands'].items()}
-        for k in ['discard', 'deck']:
-            game[k] = read_cards(game[k])
+        return load_replay_json(yml)
 
-        def read_clue(clue: dict):
-            num = clue.get('number', None)
-            if isinstance(num, int):
-                clue['number'] = str(num)
-            return Clue(**clue)
 
-        def read_log_action(la):
-            la['clue'] = read_clue(la.get('clue') or {})
-            if 'card' in la:
-                la['card'] = Card.from_str(la['card'])
+def load_replay_json(json):
+    game = json['game']
+    players = [Player(**p) for p in game['players']]
+    players = {p.id: p for p in players}
+    game['players'] = players
+    game['active_player'] = players[game['active_player']]
+    game['hands'] = {players[pid]: Hand(read_cards(hand)) for pid, hand in game['hands'].items()}
+    for k in ['discard', 'deck']:
+        game[k] = read_cards(game[k])
 
-            return LogAction(**la)
+    def read_clue(clue: dict):
+        num = clue.get('number', None)
+        if isinstance(num, int):
+            clue['number'] = str(num)
+        return Clue(**clue)
 
-        def read_log_entry(le):
-            le['player'] = players[le['player']]
-            le['actions'] = [read_log_action(la) for la in le['actions']]
-            return LogEntry(**le)
+    def read_log_action(la):
+        la['clue'] = read_clue(la.get('clue') or {})
+        if 'card' in la:
+            la['card'] = Card.from_str(la['card'])
 
-        def read_settings(settings):
-            return Settings(**settings)
+        return LogAction(**la)
 
-        def read_stacks(stacks):
-            return {c: read_cards(stack) for c, stack in stacks.items()}
+    def read_log_entry(le):
+        le['player'] = players[le['player']]
+        le['actions'] = [read_log_action(la) for la in le['actions']]
+        return LogEntry(**le)
 
-        game['settings'] = read_settings(game['settings'])
-        game['stacks'] = read_stacks(game['stacks'])
-        game['log'] = [read_log_entry(l) for l in game['log']]
-        return Replay(**game)
+    def read_settings(settings):
+        return Settings(**settings)
+
+    def read_stacks(stacks):
+        return {c: read_cards(stack) for c, stack in stacks.items()}
+
+    game['settings'] = read_settings(game['settings'])
+    game['stacks'] = read_stacks(game['stacks'])
+    game['log'] = [read_log_entry(l) for l in game['log']]
+    return Replay(**game)
 
 
 def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False, no_card_str=' ---- ') -> Callable[
@@ -391,32 +403,4 @@ def run_replay(rep: Replay, mask_active=True):
             else:
                 raise ValueError(f'Turn action {a.descr().type} is not supported')
         print_game_state()
-        print(f"After turn {turn.number()}")
-
-    # for turn in rep.log:
-    #     print(f"\n\nTurn {turn.turn}. {turn.player.id}'s turn")
-    #     for a in turn.actions:
-    #         if a.type == 'clue':
-    #             print(f'{turn.player.id} clues {a.clue.target_player} '
-    #                   f'showing {a.clue.type} {a.clue.color or a.clue.number}')
-    #             hand = rep.hands[rep.players[a.clue.target_player]]
-    #             if a.clue.type == 'color':
-    #                 hand.clue_color(a.clue.color)
-    #             else:
-    #                 hand.clue_number(a.clue.number)
-    #         elif a.type == 'play':
-    #             card = rep.hands[turn.player].remove(a.card_pos)
-    #             print(f'{turn.player.id} plays his {a.card_pos}-th card({deck_printer(card)})')
-    #         elif a.type == 'discard':
-    #             card = rep.hands[turn.player].remove(a.card_pos)
-    #             print(f'{turn.player.id} discards his {a.card_pos}-th card({deck_printer(card)})')
-    #             rep.discard.append(card)
-    #             rep.discard.sort(key=lambda c: c.color * 1000 + c.number, reverse=True)
-    #         elif a.type == 'take':
-    #             card = rep.deck.pop()
-    #             rep.hands[turn.player].append(card)
-    #             print(f'{turn.player.id} takes {deck_printer(card)} from the deck')
-    #         else:
-    #             raise ValueError(f'Turn action {a.type} is not supported')
-    #     print()
-    #     print_game_state()
+        print(f"Clues: {simulation.replay.clues}\n")

@@ -29,18 +29,16 @@ def download_game_replay(game_ver, table_id, player_id, comments_id):
         raise SystemExit(err)
     result = re.findall('gameui\.completesetup\(.*({"players".*}),.*\)', resp.text)
     res_str = '[' + result[0] + ']'
-    res_json = json.loads(res_str)
+    game_setup = json.loads(res_str)[0]
+    result_gamelogs = re.findall('g_gamelogs = ([\s\S]*);\n\s*gameui\.mediaChatRating', resp.text)
+    flamboyants = re.search(r'id="menu_option_value_104"[^>]*>([^<]*)</div>', resp.text).group(1)
+    game_setup['flamboyants'] = flamboyants.lower()
+    result_gamelogs_str = result_gamelogs[0].replace('\n', '')
+    gamelog = json.loads(result_gamelogs_str)
     filename = find_root_dir().joinpath('data', 'replays', f'{table_id}.json')
     filename.parent.mkdir(parents=True, exist_ok=True)
     with open(filename, "w") as file:
-        file.write(json.dumps(res_json[0]))
-
-    result_gamelogs = re.findall('g_gamelogs = ([\s\S]*);\n\s*gameui\.mediaChatRating', resp.text)
-    result_gamelogs_str = result_gamelogs[0].replace('\n', '')
-    res_gamelog_json = json.loads(result_gamelogs_str)
-    filename = find_root_dir().joinpath('data', 'replays', f'{table_id}_gamelogs.json')
-    with open(filename, "w") as file:
-        file.write(json.dumps(res_gamelog_json))
+        file.write(json.dumps({'game_setup': game_setup, 'game_log': gamelog}))
     pass
 
 
@@ -65,7 +63,8 @@ def stream_player_tables(player_id, game_id, finished=0, delay=1) -> Generator[B
         finished=finished,
         updateStats=0
     )
-    print(f"Downloading table list from https://boardgamearena.com/gamestats?opponent_id=0&game_id=1015&finished=0&player={player_id}")
+    print(
+        f"Downloading table list from https://boardgamearena.com/gamestats?opponent_id=0&game_id=1015&finished=0&player={player_id}")
     if game_id:
         params['game_id'] = game_id
 
