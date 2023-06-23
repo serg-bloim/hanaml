@@ -3,8 +3,6 @@ import json
 from collections import namedtuple
 from typing import Iterable, NamedTuple, List
 
-# BgaTable = namedtuple("BgaTableRaw",
-#                       "site_ver table_id game_name game_id start end concede unranked normalend players player_names scores ranks elo_win elo_penalty elo_after arena_win arena_after")
 from util.core import convert_type, find_root_dir
 
 
@@ -36,6 +34,9 @@ class BgaTable(NamedTuple):
     arena_win: str = None
     arena_after: str = None
     result: str = None
+
+    def player_ids(self):
+        return self.players.split(',')
 
 
 BgaReplayId = namedtuple('ReplayId', 'ver table player comments')
@@ -101,3 +102,12 @@ def update_players(players: List[CrawlerPlayer]):
         writer = csv.DictWriter(f, fieldnames=['name', 'id'])
         writer.writeheader()
         writer.writerows([p._asdict() for p in updated_players])
+
+
+def read_table_lists_by_owner():
+    tables_by_owner = {}
+    for fn in (find_root_dir() / 'data/tables').glob('player_*.csv'):
+        tables = read_player_tables_csv(fn)
+        owner_id = fn.name.removeprefix("player_").removesuffix(".csv")
+        tables_by_owner[owner_id] = tables
+    return tables_by_owner

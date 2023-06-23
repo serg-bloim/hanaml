@@ -22,7 +22,7 @@ class BGATestCase(unittest.TestCase):
     def test_dwld_replay_mock(self):
         gr = get_test_game_replay()
         expected_file_path = find_root_dir().joinpath("data", "replays", f"{gr.table_id}.json")
-        download_game_replay(gr.game_ver, 'mock', gr.player_id, gr.comments_id, mock_response='success')
+        download_game_replay(gr.game_ver, 'mock', gr.player_id, gr.comments_id, mock_response='389071669')
         self.assertTrue(os.path.isfile(expected_file_path), f"File {expected_file_path} does not exist")
         with open(expected_file_path, "r") as f:
             actual = json.loads(f.read())

@@ -6,6 +6,8 @@ from typing import List, Iterable, Dict, Callable, NamedTuple
 import colorama
 from yaml import safe_load
 
+from util.core import find_root_dir
+
 
 class CardLike:
     def __init__(self, color=None, number=None) -> None:
@@ -119,10 +121,10 @@ class Hand:
 
 
 class Replay:
-    def __init__(self, settings: Settings, players: Dict[str, Player], active_player, hands: Dict[Player, Hand],
-                 discard, deck, stacks, clues,
-                 mistakes, log) -> None:
+    def __init__(self, table_id: str, settings: Settings, players: Dict[str, Player], active_player,
+                 hands: Dict[Player, Hand], discard, deck, stacks, clues, mistakes, log) -> None:
         super().__init__()
+        self.table_id = table_id
         self.stacks: Dict[str, List[Card]] = stacks
         self.settings = settings
         self.players = players
@@ -135,12 +137,13 @@ class Replay:
         self.log: Iterable[LogEntry] = list(log)
 
     def all_cards(self):
-        yield from self.deck
-        yield from self.discard
-        for h in self.hands.values():
-            yield from h
-        for s in self.stacks.values():
-            yield from s
+        assert self.settings.mode == 'classic' and \
+               not self.settings.six_color and \
+               not self.settings.black_powder and \
+               not self.settings.flamboyands
+        for c in "rygbw":
+            for n, cnt in enumerate([3, 2, 2, 2, 1], start=1):
+                yield from [Card.from_str(f"{c}{n}")] * cnt
 
 
 class Completable:
@@ -304,6 +307,15 @@ def load_replay_json(json):
     game['stacks'] = read_stacks(game['stacks'])
     game['log'] = [read_log_entry(l) for l in game['log']]
     return Replay(**game)
+
+
+def load_all_replays():
+    replays = []
+    replay_dir = find_root_dir() / 'data/replays'
+    for fn in replay_dir.glob("replay_*.yml"):
+        replay = load_replay(fn)
+        replays.append(replay)
+    return replays
 
 
 def create_console_card_printer(color_only_clues=True, mask=False, hide_clues=False, no_card_str=' ---- ') -> Callable[

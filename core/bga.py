@@ -78,20 +78,21 @@ def __build_log(setup, log):
                          'giveColor'            : 'clue',
                          'flamboyant_clue'      : '',
                          'giveValue'            : 'clue',
-                         'updateReflexionTime'  : '',
+                         'updateReflexionTime'  : 'skip',
                          'missCard'             : 'play',
                          'discard_play'         : '',
-                         'revealCards'          : '',
+                         'revealCards'          : 'skip',
                          'cardPicked'           : 'take',
-                         'result'               : '',
-                         'cardPickedForObs'     : '',
+                         'result'               : 'skip',
+                         'cardPickedForObs'     : 'skip',
                          'discardCard'          : 'discard',
                          'playCard'             : 'play',
                          'gameStateChange'      : '',
-                         'newScores'            : '',
+                         'newScores'            : 'skip',
                          'discard_pick'         : '',
-                         'simpleNode'           : '',
-                         'bonusTurn'            : '',
+                         'simpleNode'           : 'skip',
+                         'simpleNote'           : 'skip',
+                         'bonusTurn'            : 'skip',
                          }[type]
             # @formatter:on
             cfg = None
@@ -104,8 +105,6 @@ def __build_log(setup, log):
                 pass
             elif type == 'giveValue':
                 cfg = {'clue': {'type': 'number', 'target_player': args['player_id'], 'number': args['value']}}
-            elif type == 'updateReflexionTime':
-                continue
             elif type in ['missCard', 'playCard', 'discardCard']:
                 hand: List = hands[active_player]
                 card_id = args['card_id']
@@ -116,28 +115,18 @@ def __build_log(setup, log):
                     cfg['add_clue'] = True
             elif type == 'discard_play':
                 pass
-            elif type == 'revealCards':
-                continue
             elif type == 'cardPicked':
                 if args['color'] == 5 and args['value'] == 6:
                     continue
                 hands[active_player].append(args['card_id'])
                 cfg = {'card': str(CardLike(color_mapping[args['color']], args['value']))}
-            elif type == 'result':
-                continue
-            elif type == 'cardPickedForObs':
-                continue
             elif type == 'gameStateChange':
                 active_player = str(args.get('active_player'))
                 continue
-            elif type == 'newScores':
-                continue
             elif type == 'discard_pick':
                 pass
-            elif type == 'simpleNode':
-                pass
-            elif type == 'bonusTurn':
-                pass
+            elif conv_type == 'skip':
+                continue
             else:
                 raise ValueError(f"Unexpected log action type: '{type}'")
             assert cfg is not None
@@ -150,14 +139,17 @@ def __build_log(setup, log):
 
 def convert_hanabi_replay(raw_data):
     setup = raw_data['game_setup']
-    log = raw_data['game_log']['data']['data']
+    log = raw_data['game_log']
+    table_id = None
+    if log:
+        table_id = log[0]['table_id']
     mode = {'1': 'classic', '2': 'tricky', '3': 'difficult', '4': 'avalanche'}[setup['variant_colors']]
 
     total_cards = int(setup['deck_count']) + len(setup['players']) * setup['handsize']
     all_cards = __unmask_cards(log, setup)
-
     replay_json = {'game':
         {
+            'table_id': table_id,
             'settings': {
                 'mode': mode,
                 'six_color': 'multicolor' in setup['colors'].values(),

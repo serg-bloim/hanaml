@@ -50,6 +50,8 @@ def generate_test_cases(game: Replay):
     sim = Simulation(game)
     cards_cnt = count(game.all_cards())
     for t in sim.simulate():
+        if not t.actions:
+            continue
         facts = {}
         turns.append(facts)
         active_player = t.player()

@@ -1,15 +1,16 @@
 import csv
 import itertools
+import sys
 import unittest
 from collections import Counter
-from typing import NamedTuple, List
+from typing import List
 
 import progressbar
 import tabulate
 
 from core.domain import write_player_tables_csv, read_player_tables_csv, BgaTable, read_table_info, read_players, \
-    update_players, CrawlerPlayer
-from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id, load_table_info
+    update_players, CrawlerPlayer, read_table_lists_by_owner
+from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id, load_table_info, download_game_replay
 from util.core import find_root_dir
 
 
@@ -68,11 +69,7 @@ class MyTestCase(unittest.TestCase):
         from plotly.subplots import make_subplots
         import plotly.graph_objects as go
         ingest_new_players = False
-        tables_by_owner = {}
-        for fn in (find_root_dir() / 'data/tables').glob('player_*.csv'):
-            tables = read_player_tables_csv(fn)[:100]
-            owner_id = fn.name.removeprefix("player_").removesuffix(".csv")
-            tables_by_owner[owner_id] = tables
+        tables_by_owner = read_table_lists_by_owner()
         all_tables = list(itertools.chain.from_iterable(tables_by_owner.values()))
         player_num = [t.player_num for t in all_tables]
         player_2_id = {}
@@ -181,8 +178,48 @@ class MyTestCase(unittest.TestCase):
 
         update_players(new_players)
 
+    def test_prep_table_list_4_download(self):
+        tables_by_owner = read_table_lists_by_owner()
+        all_tables = list(itertools.chain.from_iterable(tables_by_owner.values()))
+        tables_2v2 = [t for t in all_tables if t.player_num == 2]
+        classic_2x2 = [t for t in tables_2v2 if
+                       t.mode_colors == '1' and
+                       t.mode_black == '1' and
+                       t.mode_flams == '1' and
+                       t.mode_variant == '1']
+        classic_2x2.sort(key=lambda t: t.avg_score, reverse=True)
+        replay_dir = find_root_dir() / 'data/replays'
+        existing_tables = set(f.name.removeprefix('raw_').removesuffix('.json') for f in replay_dir.glob('raw_*.json'))
+        new_classic_2x2 = [t for t in classic_2x2 if t.table_id not in existing_tables]
+        print(f"Identified {len(new_classic_2x2)}/{len(classic_2x2)} (new/all) classic 2x2 games")
+        print("Top 10 games:")
+        for t in new_classic_2x2[:10]:
+            print(f'Table_id={t.table_id} Player_id={t.player_ids()[0]} site_ver:{t.site_ver} score: {t.avg_score}')
+
+        with open(find_root_dir() / 'data/replays/download.csv', 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow('site_ver table_id player_id'.split())
+            writer.writerows([[t.site_ver, t.table_id, t.player_ids()[0]] for t in new_classic_2x2])
+
+    def test_download_replays(self):
+        with open(find_root_dir() / 'data/replays/download.csv', 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                site_ver = row['site_ver']
+                table_id = row['table_id']
+                player_id = row['player_id']
+                if (find_root_dir() / f'data/replays/raw_{table_id}.json').exists():
+                    print(f"File for table {table_id} exists", file=sys.stderr)
+                    continue
+                try:
+                    print(f"Start downloading {table_id}")
+                    download_game_replay(site_ver, table_id, player_id, '')
+                    print(f"Finished downloading {table_id}")
+                except:
+                    err = sys.exc_info()[1]
+                    print(f"Error downloading {table_id}\n{err}")
+                    break
+
 
 if __name__ == '__main__':
     unittest.main()
-
-
