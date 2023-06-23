@@ -7,14 +7,10 @@ from typing import NamedTuple, List
 import progressbar
 import tabulate
 
-from core.domain import write_player_tables_csv, read_player_tables_csv
-from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id
+from core.domain import write_player_tables_csv, read_player_tables_csv, BgaTable, read_table_info, read_players, \
+    update_players, CrawlerPlayer
+from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id, load_table_info
 from util.core import find_root_dir
-
-
-class CrawlerPlayer(NamedTuple):
-    id: str
-    name: str | None
 
 
 class MyTestCase(unittest.TestCase):
@@ -43,6 +39,31 @@ class MyTestCase(unittest.TestCase):
             filename.parent.mkdir(parents=True, exist_ok=True)
             write_player_tables_csv(filename, tables)
 
+    def test_download_table_infos(self):
+        tables_dir = find_root_dir() / 'data/tables'
+        all_tables: List[BgaTable] = []
+        n_per_player = 100
+        only_these_player_nums = [2]
+        only_scores_between = (20, 30)
+        for f in tables_dir.glob('player_*.csv'):
+            tables = read_player_tables_csv(f)
+            tables = (t for t in tables if t.player_num in only_these_player_nums)
+            tables = (t for t in tables if only_scores_between[0] <= (t.avg_score or -1) <= only_scores_between[1])
+            tables = itertools.islice(tables, n_per_player)
+            all_tables += tables
+        file_dir = find_root_dir() / 'data/tables/info'
+        file_dir.mkdir(parents=True, exist_ok=True)
+        existing_table_info = set(
+            f.name.removeprefix('info_').removesuffix('.json') for f in file_dir.glob('info_*.json'))
+        new_tables = [t for t in all_tables if t.table_id not in existing_table_info]
+        print(f"{len(all_tables)} games detected. Existing = {len(existing_table_info)}, New = {len(new_tables)}")
+
+        t: BgaTable
+        for t in progressbar.progressbar(new_tables):
+            info_str = load_table_info(t.table_id)
+            with open(file_dir / f"info_{t.table_id}.json", 'w') as f:
+                f.write(info_str)
+
     def test_analyze_tables(self):
         from plotly.subplots import make_subplots
         import plotly.graph_objects as go
@@ -52,11 +73,11 @@ class MyTestCase(unittest.TestCase):
             tables = read_player_tables_csv(fn)[:100]
             owner_id = fn.name.removeprefix("player_").removesuffix(".csv")
             tables_by_owner[owner_id] = tables
-        all_tables = itertools.chain.from_iterable(tables_by_owner.values())
-        player_num = [len(t.players.split(',')) for t in all_tables]
+        all_tables = list(itertools.chain.from_iterable(tables_by_owner.values()))
+        player_num = [t.player_num for t in all_tables]
         player_2_id = {}
         players = Counter()
-        tables_2v2 = []
+        tables_2v2: List[BgaTable] = []
         for owner, tables in tables_by_owner.items():
             for t in tables:
                 player_names: List[str] = t.player_names.split(',')
@@ -67,10 +88,17 @@ class MyTestCase(unittest.TestCase):
                         if i != owner:
                             player_2_id[n] = i
                             players[n] += 1
+        classic_2x2 = [t for t in tables_2v2 if
+                       t.mode_colors == '1' and
+                       t.mode_black == '1' and
+                       t.mode_flams == '1' and
+                       t.mode_variant == '1']
         most_common = players.most_common(100)
         players_x = [mc[0] for mc in most_common]
         players_y = [mc[1] for mc in most_common]
-        fig = make_subplots(rows=2, cols=2, subplot_titles=("Distribution by player num", "2v2 games played by player", "Distribution of scores", "Plot 4"))
+        fig = make_subplots(rows=3, cols=2, subplot_titles=(
+            "Distribution by player num", "2v2 games played by player", "Distribution of scores", "ELO",
+            "Classic 2x2 Score"))
         fig.add_trace(
             go.Histogram(x=player_num),
             row=1, col=1
@@ -81,15 +109,63 @@ class MyTestCase(unittest.TestCase):
         )
 
         fig.add_trace(
-            go.Histogram(x=sorted([int(t.scores.split(',')[0]) for t in tables_2v2 if t.scores])),
+            go.Histogram(x=sorted([t.avg_score or -1 for t in tables_2v2])),
             row=2, col=1
+        )
+        elos = {p: next(t.elo_after for t in ts if t.elo_after) for p, ts in tables_by_owner.items()}
+        fig.add_trace(
+            go.Histogram(x=list(elos.values())),
+            row=2, col=2
+        )
+        fig.add_trace(
+            go.Histogram(x=[t.avg_score for t in classic_2x2]),
+            row=3, col=1
         )
         fig.show()
         if ingest_new_players:
             update_players([CrawlerPlayer(player_2_id[name], name) for name, _ in most_common])
 
+        print(f"Tables player_num:\n {tabulate.tabulate(Counter(player_num).most_common())}")
+        print(f"Tables avg_score:\n {tabulate.tabulate(Counter(t.avg_score or -1 for t in all_tables).most_common())}")
         print(tabulate.tabulate(most_common, headers=['name', 'cnt']))
         pass
+
+    def test_update_table_props(self):
+        def update_table(t: BgaTable):
+            players_num = t.player_num or (t.players.count(',') + 1)
+            if t.scores:
+                avg = t.avg_score or (sum(int(s) for s in t.scores.split(',')) // players_num)
+            else:
+                avg = None
+            replace = None
+            if not t.game_ver:
+                table_info = read_table_info(t.table_id)
+                if table_info:
+                    data = table_info['data']
+                    opts = data['options']
+                    replace = t._replace(player_num=players_num, avg_score=avg,
+                                         mode_colors=opts['100']['value'],
+                                         mode_variant=opts['102']['value'],
+                                         mode_black=opts['103']['value'],
+                                         mode_flams=opts['104']['value'],
+                                         mode_convention=opts['105']['value'],
+                                         game_ver=data['gameversion'],
+                                         site_ver=data['siteversion'])
+            if replace is None:
+                replace = t._replace(player_num=players_num, avg_score=avg)
+            return replace
+
+        tables_dir = find_root_dir() / 'data/tables'
+        updated = 0
+        all = 0
+        for f in progressbar.progressbar(list(tables_dir.glob('player_*.csv'))):
+            tables = read_player_tables_csv(f)
+            new_tables = [update_table(t) for t in tables]
+            all += len(tables)
+            if new_tables != tables:
+                updated += sum(int(n != o) for n, o in zip(new_tables, tables))
+                write_player_tables_csv(f, new_tables)
+        print(f"Updated {updated}/{all} tables")
 
     def test_find_player_ids(self):
         players = read_players()
@@ -110,37 +186,3 @@ if __name__ == '__main__':
     unittest.main()
 
 
-def read_players():
-    players_filename = find_root_dir() / 'data/crawler/players.csv'
-    with open(players_filename, 'r') as f:
-        reader = csv.DictReader(f)
-        players = [CrawlerPlayer(**r) for r in reader]
-    return players
-
-
-def update_players(players: List[CrawlerPlayer]):
-    none_player = CrawlerPlayer('', None)
-    name2players: dict = {p.name: p for p in players}
-    existing_players = read_players()
-    updated_players = []
-    for p in existing_players:
-        if not p.id:
-            update = name2players.get(p.name, none_player)
-            if update.id:
-                p = update
-        updated_players.append(p)
-
-    # add new players
-    existing_ids = set(p.id for p in updated_players if p.id)
-    existing_names_no_id = set(p.name for p in updated_players if not p.id)
-    for p in players:
-        if p.id in existing_ids:
-            continue
-        if p.name in existing_names_no_id:
-            continue
-        updated_players.append(p)
-    players_filename = find_root_dir() / 'data/crawler/players.csv'
-    with open(players_filename, 'w') as f:
-        writer = csv.DictWriter(f, fieldnames=['name', 'id'])
-        writer.writeheader()
-        writer.writerows([p._asdict() for p in updated_players])

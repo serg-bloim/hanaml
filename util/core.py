@@ -1,9 +1,10 @@
+from functools import cache
 from pathlib import Path
 from typing import Iterable, Dict, TypeVar, Union, Mapping, TextIO, List
 
 import numpy as np
 
-
+@cache
 def find_root_dir():
     d = Path.cwd()
     while not d.joinpath("requirements.txt").exists():
@@ -72,3 +73,16 @@ def wrap_np_array(el):
 
 def on_off(on):
     return on and 'on' or 'off'
+
+
+def convert_type(iter: Iterable[Dict], converter, fields: Iterable, replace_on_error=None):
+    for d in iter:
+        for f in fields:
+            v = d.get(f)
+            if v is not None:
+                try:
+                    converted = converter(v)
+                except:
+                    converted = replace_on_error
+                d[f] = converted
+        yield d

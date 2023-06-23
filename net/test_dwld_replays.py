@@ -19,6 +19,28 @@ class BGATestCase(unittest.TestCase):
             self.assertTrue(actual == expected, "Jsons are different")
         pass
 
+    def test_dwld_replay_mock(self):
+        gr = get_test_game_replay()
+        expected_file_path = find_root_dir().joinpath("data", "replays", f"{gr.table_id}.json")
+        download_game_replay(gr.game_ver, 'mock', gr.player_id, gr.comments_id, mock_response='success')
+        self.assertTrue(os.path.isfile(expected_file_path), f"File {expected_file_path} does not exist")
+        with open(expected_file_path, "r") as f:
+            actual = json.loads(f.read())
+            expected = json.loads(gr.replay_contents)
+            self.assertTrue(actual == expected, "Jsons are different")
+        pass
+
+    def test_dwld_replay_mock_limited(self):
+        gr = get_test_game_replay()
+        expected_file_path = find_root_dir().joinpath("data", "replays", f"{gr.table_id}.json")
+        download_game_replay(gr.game_ver, 'mock', gr.player_id, gr.comments_id, mock_response='limit')
+        self.assertTrue(os.path.isfile(expected_file_path), f"File {expected_file_path} does not exist")
+        with open(expected_file_path, "r") as f:
+            actual = json.loads(f.read())
+            expected = json.loads(gr.replay_contents)
+            self.assertTrue(actual == expected, "Jsons are different")
+        pass
+
 
 if __name__ == '__main__':
     unittest.main()

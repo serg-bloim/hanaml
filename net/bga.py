@@ -4,7 +4,7 @@ import re
 import time
 from functools import cache
 from html.parser import HTMLParser
-from typing import Generator, List
+from typing import Generator, List, NamedTuple
 
 import requests
 
@@ -14,32 +14,48 @@ from util.core import find_root_dir
 HANABI_GAME_ID = 1015
 
 
-def download_game_replay(game_ver, table_id, player_id, comments_id):
-    url = 'https://boardgamearena.com/archive/replay/' + game_ver + '/'
-    session = auth()
-    params = dict(
-        table=table_id,
-        player=player_id,
-        comments=comments_id
-    )
-    resp = session.get(url, params=params)
-    try:
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        raise SystemExit(err)
-    result = re.findall('gameui\.completesetup\(.*({"players".*}),.*\)', resp.text)
-    res_str = '[' + result[0] + ']'
-    game_setup = json.loads(res_str)[0]
-    result_gamelogs = re.findall('g_gamelogs = ([\s\S]*);\n\s*gameui\.mediaChatRating', resp.text)
-    flamboyants = re.search(r'id="menu_option_value_104"[^>]*>([^<]*)</div>', resp.text).group(1)
-    game_setup['flamboyants'] = flamboyants.lower()
-    result_gamelogs_str = result_gamelogs[0].replace('\n', '')
-    gamelog = json.loads(result_gamelogs_str)
-    filename = find_root_dir().joinpath('data', 'replays', f'{table_id}.json')
-    filename.parent.mkdir(parents=True, exist_ok=True)
-    with open(filename, "w") as file:
-        file.write(json.dumps({'game_setup': game_setup, 'game_log': gamelog}))
-    pass
+def download_game_replay(game_ver, table_id, player_id, comments_id, mock_response=None):
+    if mock_response:
+        resp = NamedTuple('resp')
+        with open(find_root_dir() / f'data/replays/mock.{mock_response}.html', 'r') as f:
+            resp.text = f.read()
+    else:
+        url = 'https://boardgamearena.com/archive/replay/' + game_ver + '/'
+        session = auth()
+        params = dict(
+            table=table_id,
+            player=player_id,
+            comments=comments_id
+        )
+        resp = session.get(url, params=params)
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as err:
+            raise SystemExit(err)
+    m = re.search('gameui\.completesetup\(.*({"players".*}),.*\)', resp.text)
+    filedir = find_root_dir() / 'data/replays'
+    if m:
+        res_str = '[' + m.group(1) + ']'
+        game_setup = json.loads(res_str)[0]
+        m = re.search('g_gamelogs = ([\s\S]*);\n\s*gameui\.mediaChatRating', resp.text)
+        if m:
+            result_gamelogs = m.group(1)
+            m = re.search(r'id="menu_option_value_104"[^>]*>([^<]*)</div>', resp.text)
+            result_gamelogs_str = result_gamelogs.replace('\n', '')
+            if m:
+                flamboyants = m.group(1)
+                game_setup['flamboyants'] = flamboyants.lower()
+                gamelog = json.loads(result_gamelogs_str)['data']['data']
+                filename = filedir / f'raw_{table_id}.json'
+                if mock_response:
+                    filename = filedir / f'mock.{mock_response}.json'
+                filename.parent.mkdir(parents=True, exist_ok=True)
+                with open(filename, "w") as file:
+                    file.write(json.dumps({'game_setup': game_setup, 'game_log': gamelog}))
+    error_file = filedir / f'error_{table_id}.html'
+    with open(error_file, 'w') as f:
+        f.write(resp.text)
+    raise ValueError(f"Cannot parse response, saved it to the file {error_file}")
 
 
 @cache
@@ -82,7 +98,13 @@ def stream_player_tables(player_id, game_id, finished=0, delay=1) -> Generator[B
         tables = http_call(pg)
         if not tables:
             break
-        yield from (BgaTable(site_ver=None, **x) for x in tables)
+        yield from (BgaTable(player_num=x['players'].count(',') + 1, **x) for x in tables)
+
+
+def load_table_info(table_id, delay=1):
+    time.sleep(delay)
+    resp = auth().get("https://boardgamearena.com/table/table/tableinfos.html", params={'id': table_id})
+    return resp.text.replace('\n', ' ')
 
 
 def get_table_site_ver(table_id, delay=1):
