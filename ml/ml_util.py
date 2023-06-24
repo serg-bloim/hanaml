@@ -1,5 +1,9 @@
+import pathlib
+from typing import Any, Callable
+
 import numpy as np
 import pandas as pd
+import progressbar
 import tabulate
 import tensorflow as tf
 from pandas import Series
@@ -30,7 +34,8 @@ def create_data(ver):
     df_train = df[dataset_lbl == 'train']
     df_test = df[dataset_lbl == 'test']
     train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name='action_type', shuffle=True)
-    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name='action_type', target_encoder=label_enc)
+    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name='action_type',
+                                       target_encoder=label_enc)
     return train_ds, test_ds, fields_map, label_enc
 
 
@@ -93,10 +98,25 @@ def df_to_dataset(df: pd.DataFrame, shuffle=True, batch_size=5, target_name='tar
     ds = ds.prefetch(batch_size)
     return ds, target_encoder
 
-def train_model(model, train_ds, test_ds, epochs, label_enc, save_name):
+
+def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, save_name, save_each_n_epochs=None,
+                callbacks=None, starting_epoch=0):
     tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True)
-    model.fit(train_ds, epochs=epochs)
-    model.save(find_root_dir().joinpath(f'model/{save_name}'))
+    print(f"Start training. Datasize: {len(train_ds)}/{len(test_ds)}")
+
+    bar = progressbar.ProgressBar(min_value=starting_epoch, max_value=starting_epoch + epochs,
+                                  suffix=' loss: {variables.loss}, accuracy:{variables.accuracy}',
+                                  variables={'loss': '', 'accuracy': ''})
+    all_callbacks = [EpochsProgressBar(bar, starting_epoch=starting_epoch)]
+    model_naming = lambda e: find_root_dir() / f'model/{save_name}{e}'
+    if save_each_n_epochs:
+        all_callbacks.append(SaveEveryNEpochs(save_each_n_epochs, model_naming,
+                                              starting_epoch=starting_epoch))
+    if callbacks:
+        all_callbacks += callbacks
+
+    model.fit(train_ds, epochs=epochs, verbose=0, callbacks=all_callbacks)
+    model.save(model_naming(starting_epoch + epochs))
     loss, accuracy = model.evaluate(test_ds)
     print("Test evaluation accuracy", accuracy)
     predictions = model.predict(test_ds)
@@ -106,3 +126,29 @@ def train_model(model, train_ds, test_ds, epochs, label_enc, save_name):
     lvocab = label_enc.get_vocabulary()
     data = [[lvocab[x] for x in [l, p]] for l, p in zip(labels, predictions)]
     print(tabulate.tabulate(data, headers='actual predicted'.split()))
+
+
+class EpochsProgressBar(tf.keras.callbacks.Callback):
+
+    def __init__(self, bar: progressbar.ProgressBar, starting_epoch=0):
+        super().__init__()
+        self.bar = bar
+        self.starting_epoch = starting_epoch
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.bar.update(epoch + self.starting_epoch, **{k: str(v)[:6] for k, v in logs.items()})
+
+
+class SaveEveryNEpochs(tf.keras.callbacks.Callback):
+
+    def __init__(self, period: int, naming: Callable[[Any], pathlib.Path | str], starting_epoch=0):
+        super().__init__()
+        self.period = period
+        self.naming = naming
+        self.starting_epoch = starting_epoch
+
+    def on_epoch_end(self, epoch, logs=None):
+        if epoch > 0:
+            epoch += self.starting_epoch
+            if epoch % self.period == 0:
+                self.model.save(self.naming(epoch))

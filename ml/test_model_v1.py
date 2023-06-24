@@ -37,12 +37,13 @@ class MyTestCase(unittest.TestCase):
 
     def test_improve_model(self):
         model_ver = 'v2'
-        model_epochs = 1000
-        epochs = 1000
+        model_epochs = 2000
+        epochs = 8000
         model_name = f'model_{model_ver}_{model_epochs}'
         model = tf.keras.models.load_model(find_root_dir().joinpath(f'model/{model_name}'))
         train_ds, test_ds, fields_map, label_enc = create_data(model_ver)
-        train_model(model, train_ds, test_ds, epochs, label_enc, f"model_{model_ver}_{model_epochs + epochs}")
+        train_model(model, train_ds, test_ds, epochs, label_enc, f"model_{model_ver}_", save_each_n_epochs=1000,
+                    starting_epoch=model_epochs)
 
     def test_run_existing_models(self):
         output = []
