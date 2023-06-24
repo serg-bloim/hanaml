@@ -12,7 +12,22 @@ from core.generate_test_cases import load_test_cases, Field, to_dtype, Encoding
 from util.core import find_root_dir
 
 
-def create_data(ver):
+def create_custom_data(df, ver, target_column):
+    columns2remove = 'action_type clue_number clue_color play_card'.split()
+    columns2remove.remove(target_column)
+    df = df.drop(columns2remove, axis=1)
+    df.fillna('NA', inplace=True)
+    batch_size = 5
+    dataset_lbl = df.pop('dataset')
+    df_train = df[dataset_lbl == 'train']
+    df_test = df[dataset_lbl == 'test']
+    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column, shuffle=True)
+    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column,
+                                       target_encoder=label_enc)
+    return train_ds, test_ds, label_enc
+
+
+def load_dataframe(ver):
     all_turns = []
     all_fields = []
     for dataset in ['train', 'test']:
@@ -23,21 +38,24 @@ def create_data(ver):
                     t['dataset'] = dataset
                 all_turns += turns
                 all_fields.append(fields)
-
     fields_map = {f.name: f for f in fields}
-    columns2remove = 'clue_number clue_color play_card'.split()
     df = pd.DataFrame(all_turns)
-    df = df.drop(columns2remove, axis=1)
-    df.fillna('NA', inplace=True)
-    batch_size = 5
-    dataset_lbl = df.pop('dataset')
-    df_train = df[dataset_lbl == 'train']
-    df_test = df[dataset_lbl == 'test']
-    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name='action_type', shuffle=True)
-    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name='action_type',
-                                       target_encoder=label_enc)
+    return df, fields_map
+
+
+def create_data_action(ver):
+    target_column = 'action_type'
+    df, fields_map = load_dataframe(ver)
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
     return train_ds, test_ds, fields_map, label_enc
 
+
+def create_data_play(ver):
+    target_column = 'play_card'
+    df, fields_map = load_dataframe(ver)
+    df = df[df['action_type'] == 'play']
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    return train_ds, test_ds, fields_map, label_enc
 
 def get_normalization_layer(field, ds):
     normalizer = tf.keras.layers.Normalization(axis=None)
@@ -101,13 +119,14 @@ def df_to_dataset(df: pd.DataFrame, shuffle=True, batch_size=5, target_name='tar
 
 def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, save_name, save_each_n_epochs=None,
                 callbacks=None, starting_epoch=0):
-    tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True)
     print(f"Start training. Datasize: {len(train_ds)}/{len(test_ds)}")
 
-    bar = progressbar.ProgressBar(min_value=starting_epoch, max_value=starting_epoch + epochs,
+    bar = progressbar.ProgressBar(max_value=epochs,
                                   suffix=' loss: {variables.loss}, accuracy:{variables.accuracy}',
-                                  variables={'loss': '', 'accuracy': ''})
-    all_callbacks = [EpochsProgressBar(bar, starting_epoch=starting_epoch)]
+                                  variables={'loss': '', 'accuracy': ''},
+                                  term_width=120
+                                  )
+    all_callbacks = [EpochsProgressBar(bar)]
     model_naming = lambda e: find_root_dir() / f'model/{save_name}{e}'
     if save_each_n_epochs:
         all_callbacks.append(SaveEveryNEpochs(save_each_n_epochs, model_naming,
@@ -118,14 +137,14 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
     model.fit(train_ds, epochs=epochs, verbose=0, callbacks=all_callbacks)
     model.save(model_naming(starting_epoch + epochs))
     loss, accuracy = model.evaluate(test_ds)
-    print("Test evaluation accuracy", accuracy)
+    print(f"Test evaluation accuracy after {epochs} epochs = {accuracy}")
     predictions = model.predict(test_ds)
-    predictions = [np.argmax(x) for x in predictions]
+    predictions = [(np.argmax(x), max(x)) for x in predictions]
     print(predictions)
     labels = [l for f, l in test_ds.unbatch().as_numpy_iterator()]
     lvocab = label_enc.get_vocabulary()
-    data = [[lvocab[x] for x in [l, p]] for l, p in zip(labels, predictions)]
-    print(tabulate.tabulate(data, headers='actual predicted'.split()))
+    data = [[lvocab[x] for x in [l, p]] + [c] for l, (p, c) in zip(labels, predictions)]
+    print(tabulate.tabulate(data, headers='actual predicted certainty'.split()))
 
 
 class EpochsProgressBar(tf.keras.callbacks.Callback):

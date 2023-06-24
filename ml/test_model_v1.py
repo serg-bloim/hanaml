@@ -3,16 +3,22 @@ import unittest
 import tabulate
 import tensorflow as tf
 
-from ml.ml_util import create_input_pipeline, create_data, train_model
+from ml.ml_util import create_input_pipeline, create_data_action, train_model, create_data_play
 from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
+    model_type = 'play'
+    model_ver = 'v2'
+    model_epochs = 5000
+
+    def setUp(self) -> None:
+        tf.get_logger().setLevel('INFO')
+
     def test_create_model(self):
-        model_ver = 'v2'
         epochs = 5000
 
-        train_ds, test_ds, fields_map, label_enc = create_data(model_ver)
+        train_ds, test_ds, fields_map, label_enc = self.create_data()
         [(train_features, label_batch)] = train_ds.take(1)
         print('Every feature:', list(train_features.keys()))
         print('A batch of turns:', train_features['active_card_1_clue_color'])
@@ -33,25 +39,31 @@ class MyTestCase(unittest.TestCase):
         model.compile(optimizer='adam',
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=["accuracy"])
-        train_model(model, train_ds, test_ds, epochs, label_enc, f"model_{model_ver}_{epochs}")
+        model_prefix = f"{self.model_type}_{self.model_ver}_"
+        tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True, to_file=model_prefix + ".png")
+        train_model(model, train_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000)
+
+    def create_data(self):
+        provider = {'action': create_data_action,
+                    'play': create_data_play}[self.model_type]
+        return provider(self.model_ver)
 
     def test_improve_model(self):
-        model_ver = 'v2'
-        model_epochs = 2000
-        epochs = 8000
-        model_name = f'model_{model_ver}_{model_epochs}'
+        epochs = 10000
+        model_name = f'{self.model_type}_{self.model_ver}_{self.model_epochs}'
         model = tf.keras.models.load_model(find_root_dir().joinpath(f'model/{model_name}'))
-        train_ds, test_ds, fields_map, label_enc = create_data(model_ver)
-        train_model(model, train_ds, test_ds, epochs, label_enc, f"model_{model_ver}_", save_each_n_epochs=1000,
-                    starting_epoch=model_epochs)
+        train_ds, test_ds, fields_map, label_enc = self.create_data()
+        train_model(model, train_ds, test_ds, epochs, label_enc, f"{self.model_type}_{self.model_ver}_",
+                    save_each_n_epochs=1000,
+                    starting_epoch=self.model_epochs)
 
     def test_run_existing_models(self):
         output = []
-        model_ver = "v1"
-        for model_dir in find_root_dir().joinpath(f'model').glob(f"model_{model_ver}*"):
+        model_ver = "v2"
+        for model_dir in find_root_dir().joinpath(f'model').glob(f"{self.model_type}_{model_ver}*"):
             model = tf.keras.models.load_model(model_dir)
-            train_data, test_data, *_ = create_data(model_ver)
-            loss, accuracy = model.evaluate(test_data)
+            train_ds, test_ds, fields_map, label_enc = self.create_data()
+            loss, accuracy = model.evaluate(test_ds)
             output.append([model_dir.name, loss, accuracy])
         print(tabulate.tabulate(output, headers="Name Loss Accuracy".split()))
 
