@@ -93,6 +93,7 @@ def __build_log(setup, log):
                          'simpleNode'           : 'skip',
                          'simpleNote'           : 'skip',
                          'bonusTurn'            : 'skip',
+                         'wakeupPlayers'        : 'skip',
                          }[type]
             # @formatter:on
             cfg = None

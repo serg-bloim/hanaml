@@ -6,7 +6,9 @@ import pandas as pd
 import progressbar
 import tabulate
 import tensorflow as tf
+from keras.layers import StringLookup
 from pandas import Series
+from tensorflow.python.data.ops.dataset_ops import DatasetV1Adapter
 
 from core.generate_test_cases import load_test_cases, Field, to_dtype, Encoding
 from util.core import find_root_dir
@@ -14,15 +16,20 @@ from util.core import find_root_dir
 
 def create_custom_data(df, ver, target_column):
     columns2remove = 'action_type clue_number clue_color play_card'.split()
-    columns2remove.remove(target_column)
+    try:
+        columns2remove.remove(target_column)
+    except:
+        pass
     df = df.drop(columns2remove, axis=1)
     df.fillna('NA', inplace=True)
     batch_size = 5
     dataset_lbl = df.pop('dataset')
     df_train = df[dataset_lbl == 'train']
     df_test = df[dataset_lbl == 'test']
-    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column, shuffle=True)
-    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column,
+    label_enc: StringLookup
+    train_ds: DatasetV1Adapter
+    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column)
+    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column, shuffle=False,
                                        target_encoder=label_enc)
     return train_ds, test_ds, label_enc
 
@@ -56,6 +63,24 @@ def create_data_play(ver):
     df = df[df['action_type'] == 'play']
     train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
     return train_ds, test_ds, fields_map, label_enc
+
+
+def create_data_clue(ver):
+    target_column = 'clue_val'
+    df, fields_map = load_dataframe(ver)
+    df['clue_val'] = df.clue_number.fillna(df.clue_color)
+    df = df[df['action_type'] == 'clue']
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    return train_ds, test_ds, fields_map, label_enc
+
+
+def create_data_discard(ver):
+    target_column = 'play_card'
+    df, fields_map = load_dataframe(ver)
+    df = df[df['action_type'] == 'discard']
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    return train_ds, test_ds, fields_map, label_enc
+
 
 def get_normalization_layer(field, ds):
     normalizer = tf.keras.layers.Normalization(axis=None)
@@ -122,8 +147,8 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
     print(f"Start training. Datasize: {len(train_ds)}/{len(test_ds)}")
 
     bar = progressbar.ProgressBar(max_value=epochs,
-                                  suffix=' loss: {variables.loss}, accuracy:{variables.accuracy}',
-                                  variables={'loss': '', 'accuracy': ''},
+                                  suffix=' loss: {variables.loss}, accuracy:{variables.acc}',
+                                  variables={'loss': '', 'acc': ''},
                                   term_width=120
                                   )
     all_callbacks = [EpochsProgressBar(bar)]
@@ -135,7 +160,8 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
         all_callbacks += callbacks
 
     model.fit(train_ds, epochs=epochs, verbose=0, callbacks=all_callbacks)
-    model.save(model_naming(starting_epoch + epochs))
+    if epochs > 0:
+        model.save(model_naming(starting_epoch + epochs))
     loss, accuracy = model.evaluate(test_ds)
     print(f"Test evaluation accuracy after {epochs} epochs = {accuracy}")
     predictions = model.predict(test_ds)
