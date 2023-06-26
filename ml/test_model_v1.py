@@ -13,7 +13,7 @@ from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
-    model_type = 'play'
+    model_type = 'clue'
     model_ver = 'v3'
     model_epochs = 5000
 
