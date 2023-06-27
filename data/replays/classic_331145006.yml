@@ -1,4 +1,5 @@
 game:
+  table_id: testgame
   settings:
     mode: classic
     six_color: no

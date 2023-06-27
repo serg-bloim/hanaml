@@ -1,6 +1,6 @@
 from typing import NamedTuple, List
 
-from core.player import CardLike
+from core.replay import CardLike
 
 
 def __build_deck(raw_data):
@@ -60,42 +60,44 @@ def __build_log(setup, log):
                 yield {'move_id': last_move, 'data': actions}
                 actions = l['data']
                 last_move = l['move_id']
+        yield {'move_id': last_move, 'data': actions}
 
     color_mapping = __create_colors_mapping(setup)
     logs = []
     active_player = setup['playerorder'][0]
     hands = {p: list(reversed(setup['hand' + p].keys())) for p in setup['players'].keys()}
     handsize = setup['handsize']
+    # @formatter:off
+    type_conversion = {'flamboyant_mistake'   : '',
+                       'giveColor'            : 'clue',
+                       'flamboyant_clue'      : '',
+                       'giveValue'            : 'clue',
+                       'updateReflexionTime'  : 'skip',
+                       'missCard'             : 'play',
+                       'discard_play'         : '',
+                       'revealCards'          : 'skip',
+                       'cardPicked'           : 'take',
+                       'result'               : 'skip',
+                       'cardPickedForObs'     : 'skip',
+                       'discardCard'          : 'discard',
+                       'playCard'             : 'play',
+                       'gameStateChange'      : '',
+                       'newScores'            : 'skip',
+                       'discard_pick'         : '',
+                       'simpleNode'           : 'skip',
+                       'simpleNote'           : 'skip',
+                       'bonusTurn'            : 'skip',
+                       'wakeupPlayers'        : 'skip',
+                       }
+    # @formatter:on
     for move in gen_moves():
         id = move['move_id']
         actions = []
-        logs.append({'turn': id, 'player': active_player, 'actions': actions})
+        turn_active_player = active_player
         for act in move['data']:
             args = act.get('args') or {}
             type = act['type']
-            # @formatter:off
-            conv_type = {'flamboyant_mistake'   : '',
-                         'giveColor'            : 'clue',
-                         'flamboyant_clue'      : '',
-                         'giveValue'            : 'clue',
-                         'updateReflexionTime'  : 'skip',
-                         'missCard'             : 'play',
-                         'discard_play'         : '',
-                         'revealCards'          : 'skip',
-                         'cardPicked'           : 'take',
-                         'result'               : 'skip',
-                         'cardPickedForObs'     : 'skip',
-                         'discardCard'          : 'discard',
-                         'playCard'             : 'play',
-                         'gameStateChange'      : '',
-                         'newScores'            : 'skip',
-                         'discard_pick'         : '',
-                         'simpleNode'           : 'skip',
-                         'simpleNote'           : 'skip',
-                         'bonusTurn'            : 'skip',
-                         'wakeupPlayers'        : 'skip',
-                         }[type]
-            # @formatter:on
+            conv_type = type_conversion[type]
             cfg = None
             if type == 'flamboyant_mistake':
                 pass
@@ -134,7 +136,9 @@ def __build_log(setup, log):
             action = {'type': conv_type}
             action.update(cfg)
             actions.append(action)
-        actions.sort(key=lambda x: ['play', 'discard', 'take', 'clue'].index(x['type']))
+        if id and actions:
+            logs.append({'turn': id, 'player': turn_active_player, 'actions': actions})
+            actions.sort(key=lambda x: ['play', 'discard', 'take', 'clue'].index(x['type']))
     return logs
 
 
