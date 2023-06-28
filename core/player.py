@@ -3,10 +3,14 @@ import re
 from enum import Enum, auto
 from typing import List, Dict
 
-from core.replay import Card, Hand, Replay, NotPlayableCard, NO_CARD, create_console_card_printer
+from core.replay import Card, Hand, Replay, NotPlayableCard, NO_CARD, create_console_card_printer, CardLike
+from util.hanabi import generate_all_cards
 
 
 class ClassicHanabi2PClient:
+
+    def __init__(self, name):
+        self.name = name
 
     def init(self, ctx):
         self.ctx = ctx
@@ -18,15 +22,15 @@ class ClassicHanabi2PClient:
         pass
 
     def get_name(self) -> str:
-        pass
+        return self.name
 
 
 class ReplayPlayer(ClassicHanabi2PClient):
 
     def __init__(self, replay: Replay, player_index: int) -> None:
-        super().__init__()
-        self.replay = replay
         self.player = list(replay.players.values())[player_index]
+        super().__init__(self.player.id)
+        self.replay = replay
         self.__log = iter([])
 
     def get_name(self) -> str:
@@ -60,13 +64,6 @@ class ReplayPlayer(ClassicHanabi2PClient):
 
 
 class ConsolePlayer(ClassicHanabi2PClient):
-
-    def __init__(self, name):
-        self.name = name
-
-    def get_name(self) -> str:
-        return self.name
-
     def request_move(self, ctx):
         while True:
             inp = input(f"Provide input for player {self.get_name()}:")
@@ -270,9 +267,7 @@ class HanabiPlayer:
             self.clues += 1
 
     def all_cards(self):
-        for c in "rygbw":
-            for n, cnt in enumerate([3, 2, 2, 2, 1], start=1):
-                yield from [Card.from_str(f"{c}{n}")] * cnt
+        return generate_all_cards()
 
 
 class PlayerCtx:
@@ -323,6 +318,18 @@ class MoveCtx:
 
     def get_discard(self):
         return self.__player.discard.copy()
+
+    def get_my_cards(self) -> List[CardLike]:
+        return [c.clue for c in self.__get_my_hand()]
+
+    def get_opponents_cards(self) -> List[Card]:
+        return [c for c in self.__get_opponents_hand()]
+
+    def __get_my_hand(self):
+        return self.__player.get_my_hand(self.__client)
+
+    def __get_opponents_hand(self):
+        return self.__player.get_opponents_hand(self.__client)
 
 
 def run_replay(rep: Replay, callbacks=HanabiPlayerCallbacks()):

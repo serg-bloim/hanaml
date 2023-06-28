@@ -1,5 +1,8 @@
+import json
 import pathlib
-from typing import Any, Callable
+from pathlib import Path
+from typing import Any, Callable, List
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -14,7 +17,39 @@ from core.generate_test_cases import load_test_cases, Field, to_dtype, Encoding
 from util.core import find_root_dir
 
 
-def create_custom_data(df, ver, target_column):
+class ModelResponse:
+
+    def __init__(self, prediction: List[float], decoder: Callable[[int], str]) -> None:
+        super().__init__()
+        self.prediction = prediction
+        self.decoder = decoder
+
+    def top_result(self):
+        top_ind = np.argmax(self.prediction)
+        self.decoder(top_ind)
+
+
+def fill_na(v, replacement):
+    return replacement if v is None else v
+
+
+class ModelContainer:
+
+    def __init__(self, tf_model: tf.keras.Model, result_decoder: Callable[[int], str]) -> None:
+        self.result_decoder = result_decoder
+        self.model = tf_model
+
+    def request(self, inputs: Dict) -> ModelResponse:
+        ds = tf.data.Dataset.from_tensor_slices({f: [fill_na(v, 'NA')] for f, v in inputs.items()}).batch(1)
+        try:
+            prediction = self.model.predict(ds)
+            return ModelResponse(prediction, self.result_decoder)
+        except:
+            pass
+        pass
+
+
+def create_custom_data(df, ver, target_column,label_enc: StringLookup):
     columns2remove = 'action_type clue_number clue_color play_card'.split()
     try:
         columns2remove.remove(target_column)
@@ -26,9 +61,8 @@ def create_custom_data(df, ver, target_column):
     dataset_lbl = df.pop('dataset')
     df_train = df[dataset_lbl == 'train']
     df_test = df[dataset_lbl == 'test']
-    label_enc: StringLookup
     train_ds: DatasetV1Adapter
-    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column)
+    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column, target_encoder=label_enc)
     test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column, shuffle=False,
                                        target_encoder=label_enc)
     return train_ds, test_ds, label_enc
@@ -50,35 +84,35 @@ def load_dataframe(ver):
     return df, fields_map
 
 
-def create_data_action(ver):
+def create_data_action(ver,lbl_encoder):
     target_column = 'action_type'
     df, fields_map = load_dataframe(ver)
-    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column,lbl_encoder)
     return train_ds, test_ds, fields_map, label_enc
 
 
-def create_data_play(ver):
+def create_data_play(ver,lbl_encoder):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'play']
-    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column,lbl_encoder)
     return train_ds, test_ds, fields_map, label_enc
 
 
-def create_data_clue(ver):
+def create_data_clue(ver,lbl_encoder):
     target_column = 'clue_val'
     df, fields_map = load_dataframe(ver)
     df['clue_val'] = df.clue_number.fillna(df.clue_color)
     df = df[df['action_type'] == 'clue']
-    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column,lbl_encoder)
     return train_ds, test_ds, fields_map, label_enc
 
 
-def create_data_discard(ver):
+def create_data_discard(ver,lbl_encoder):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'discard']
-    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column)
+    train_ds, test_ds, label_enc = create_custom_data(df, ver, target_column,lbl_encoder)
     return train_ds, test_ds, fields_map, label_enc
 
 
@@ -161,7 +195,7 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
 
     model.fit(train_ds, epochs=epochs, verbose=0, callbacks=all_callbacks)
     if epochs > 0:
-        model.save(model_naming(starting_epoch + epochs))
+        save_model(model, model_naming(starting_epoch + epochs), label_enc)
     loss, accuracy = model.evaluate(test_ds)
     print(f"Test evaluation accuracy after {epochs} epochs = {accuracy}")
     predictions = model.predict(test_ds)
@@ -171,6 +205,23 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
     lvocab = label_enc.get_vocabulary()
     data = [[lvocab[x] for x in [l, p]] + [c] for l, (p, c) in zip(labels, predictions)]
     print(tabulate.tabulate(data, headers='actual predicted certainty'.split()))
+
+
+def save_model(model, path, label_enc):
+    model.save(path)
+    with open(path / 'label_enc.json', 'w') as f:
+        config = label_enc.get_config()
+        json.dump(config)
+
+
+def load_model(path: Path):
+    model = tf.keras.models.load_model(path)
+    encoder = None
+    enc_path = path / 'label_enc.json'
+    if enc_path.exists():
+        with open(enc_path, 'r') as f:
+            encoder = StringLookup.from_config(json.load(f))
+    return model, encoder
 
 
 class EpochsProgressBar(tf.keras.callbacks.Callback):
