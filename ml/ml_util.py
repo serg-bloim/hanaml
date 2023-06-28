@@ -26,7 +26,7 @@ class ModelResponse:
 
     def top_result(self):
         top_ind = np.argmax(self.prediction)
-        self.decoder(top_ind)
+        return self.decoder(top_ind)
 
 
 def fill_na(v, replacement):
@@ -188,7 +188,7 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
     all_callbacks = [EpochsProgressBar(bar)]
     model_naming = lambda e: find_root_dir() / f'model/{save_name}{e}'
     if save_each_n_epochs:
-        all_callbacks.append(SaveEveryNEpochs(save_each_n_epochs, model_naming,
+        all_callbacks.append(SaveEveryNEpochs(save_each_n_epochs, model_naming, label_enc,
                                               starting_epoch=starting_epoch))
     if callbacks:
         all_callbacks += callbacks
@@ -207,11 +207,12 @@ def train_model(model: tf.keras.Model, train_ds, test_ds, epochs, label_enc, sav
     print(tabulate.tabulate(data, headers='actual predicted certainty'.split()))
 
 
-def save_model(model, path, label_enc):
+def save_model(model, path, label_enc:StringLookup):
     model.save(path)
     with open(path / 'label_enc.json', 'w') as f:
         config = label_enc.get_config()
-        json.dump(config)
+        config['vocabulary'] = label_enc.get_vocabulary()
+        json.dump(config, f)
 
 
 def load_model(path: Path):
@@ -237,8 +238,9 @@ class EpochsProgressBar(tf.keras.callbacks.Callback):
 
 class SaveEveryNEpochs(tf.keras.callbacks.Callback):
 
-    def __init__(self, period: int, naming: Callable[[Any], pathlib.Path | str], starting_epoch=0):
+    def __init__(self, period: int, naming: Callable[[Any], pathlib.Path | str], label_enc: StringLookup, starting_epoch=0):
         super().__init__()
+        self.label_enc = label_enc
         self.period = period
         self.naming = naming
         self.starting_epoch = starting_epoch
@@ -247,4 +249,4 @@ class SaveEveryNEpochs(tf.keras.callbacks.Callback):
         if epoch > 0:
             epoch += self.starting_epoch
             if epoch % self.period == 0:
-                self.model.save(self.naming(epoch))
+                save_model(self.model, self.naming(epoch), label_enc=self.label_enc)

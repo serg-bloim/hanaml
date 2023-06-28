@@ -336,10 +336,11 @@ def run_replay(rep: Replay, callbacks=HanabiPlayerCallbacks()):
     p1 = ReplayPlayer(rep, player_index=0)
     p2 = ReplayPlayer(rep, player_index=1)
     for l in rep.log:
-        first_player = l.player
-        if p1.player is not first_player:
-            p1, p2 = p2, p1
-        break
+        if l.actions:
+            first_player = l.player
+            if p1.player is not first_player:
+                p1, p2 = p2, p1
+            break
     rep.recreate_deck()
     h1, h2 = [rep.hands[p.player] for p in [p1, p2]]
     player = HanabiPlayer(p1, p2, ListDeck(rep.recreate_deck()), h1, h2, rep.stacks, callbacks=callbacks)

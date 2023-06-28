@@ -49,7 +49,7 @@ class MyTestCase(unittest.TestCase):
                       metrics=['acc'])
         model_prefix = f"{self.model_type}_{self.model_ver}_"
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True, to_file=model_prefix + ".png")
-        train_model(model, train_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000)
+        train_model(model, train_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=100)
 
     def create_data(self, lbl_encoder:StringLookup = None) -> Tuple[DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:
         provider = {'action': create_data_action,
