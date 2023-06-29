@@ -89,14 +89,14 @@ def load_dataframe(ver):
     return df, fields_map
 
 
-def create_data_action(ver, lbl_encoder):
+def create_data_action(ver, lbl_encoder = None):
     target_column = 'action_type'
     df, fields_map = load_dataframe(ver)
     train_ds, val_ds, test_ds, label_enc = create_custom_data(df, ver, target_column, lbl_encoder)
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_play(ver, lbl_encoder):
+def create_data_play(ver, lbl_encoder = None):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'play']
@@ -104,7 +104,7 @@ def create_data_play(ver, lbl_encoder):
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_clue(ver, lbl_encoder):
+def create_data_clue(ver, lbl_encoder = None):
     target_column = 'clue_val'
     df, fields_map = load_dataframe(ver)
     df['clue_val'] = df.clue_number.fillna(df.clue_color)
@@ -113,7 +113,7 @@ def create_data_clue(ver, lbl_encoder):
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_discard(ver, lbl_encoder):
+def create_data_discard(ver, lbl_encoder = None):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'discard']

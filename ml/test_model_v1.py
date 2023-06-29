@@ -48,7 +48,10 @@ class MyTestCase(unittest.TestCase):
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=['acc'])
         model_prefix = f"{self.model_type}_{self.model_ver}{self.model_name_suffix}_"
-        tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True, to_file=model_prefix + ".png")
+        img_dir = find_root_dir() / 'model/_img'
+        img_dir.mkdir(parents=True, exist_ok=True)
+        tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
+                                  to_file=img_dir / f"{model_prefix}.png")
         train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000,
                     checkpoint_every_n_epochs=100)
 

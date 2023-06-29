@@ -2,25 +2,28 @@ import random
 import unittest
 
 from core.generate_test_cases import generate_test_cases, save_test_cases
+from core.player import run_replay, create_console_printer_callbacks
 from core.replay import load_replay, load_all_replays
 from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
+    ver = 'v4'
+
     def test_gen_testcases_single_file(self):
         table_id = '386900955'
-        replay_file = find_root_dir().joinpath('data', 'replays', f'test_replay_{table_id}.yml')
+        replay_file = find_root_dir().joinpath('data', 'replays', f'replay_{table_id}.yml')
         replay = load_replay(replay_file)
-        turns = generate_test_cases(replay)
+        run_replay(replay, callbacks=create_console_printer_callbacks())
+        turns = generate_test_cases(load_replay(replay_file), ver=self.ver)
         print(f'Generated test_cases: {len(turns)} x {len(turns[0])}({sum(c.shape for c in turns[0].keys())} inputs)')
         print(turns[0].keys())
 
     def test_gen_testcases_all_files(self):
         replays = load_all_replays()
-        ver = 'v4'
         validation_slice = 0.17
         test_slice = 0.17
-        tc_dir = find_root_dir() / 'data/testcases' / ver
+        tc_dir = find_root_dir() / 'data/testcases' / self.ver
         tc_dir.mkdir(parents=True, exist_ok=True)
         random.shuffle(replays)
         validation_len = int(round(len(replays) * validation_slice))
@@ -31,7 +34,7 @@ class MyTestCase(unittest.TestCase):
         for batch, name in [(training, 'train'), (test, 'test'), (validation, 'val')]:
             for replay in batch:
                 print(f'Start processing table={replay.table_id}')
-                turns = generate_test_cases(replay)
+                turns = generate_test_cases(replay, ver=self.ver)
                 print(f'Generated test_cases from table {replay.table_id}:'
                       f' {len(turns)} x {len(turns[0])}({sum(c.shape for c in turns[0].keys())} inputs)')
                 print(turns[0].keys())

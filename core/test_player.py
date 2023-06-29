@@ -8,7 +8,7 @@ from util.core import find_root_dir
 
 class MyTestCase(unittest.TestCase):
     def test_load_replay(self):
-        replay_file = find_root_dir().joinpath('data', 'replays', 'classic_331145006.yml')
+        replay_file = find_root_dir().joinpath('data', 'replays', 'replay_386900955.yml')
         replay = load_replay(replay_file)
         print(replay)
 

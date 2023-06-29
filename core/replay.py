@@ -23,6 +23,12 @@ class CardLike:
     def __repr__(self) -> str:
         return f"{self.color}{self.number}"
 
+    def __eq__(self, o: object) -> bool:
+        return isinstance(o, CardLike) and self.color == o.color and self.number == o.number
+
+    def __hash__(self) -> int:
+        return self.__repr__().__hash__()
+
 
 class Card(CardLike):
     def __init__(self, color, number, order) -> None:
