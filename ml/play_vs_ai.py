@@ -1,5 +1,3 @@
-import tensorflow as tf
-
 from core.player import HanabiPlayer, ConsolePlayer, ListDeck, create_console_printer_callbacks
 from core.replay import load_replay
 from ml.ml_util import ModelContainer, load_model
@@ -7,10 +5,10 @@ from ml.player_adapter import AIHanabiClient
 from util.core import find_root_dir
 
 model_dir = find_root_dir() / 'model'
-action_model, action_encoder = load_model(model_dir / 'action_v3_1000')
-play_model, play_encoder = load_model(model_dir / 'play_v3_1000')
-discard_model, discard_encoder = load_model(model_dir / 'discard_v3_1000')
-clue_model, clue_encoder = load_model(model_dir / 'clue_v3_1000')
+action_model, action_encoder, _ = load_model(model_dir / 'action_v4_1600')
+play_model, play_encoder, _ = load_model(model_dir / 'play_v4_1000')
+discard_model, discard_encoder, _ = load_model(model_dir / 'discard_v4_1600')
+clue_model, clue_encoder, _ = load_model(model_dir / 'clue_v4_1000')
 
 while True:
     try:
@@ -22,7 +20,7 @@ while True:
                             ModelContainer(discard_model, discard_encoder.get_vocabulary().__getitem__),
                             ModelContainer(clue_model, clue_encoder.get_vocabulary().__getitem__))
         h1, h2 = replay.hands.values()
-        player = HanabiPlayer(p1, p2, ListDeck(replay.recreate_deck()), h1, h2, None,
+        player = HanabiPlayer(p1, p2, ListDeck(replay.recreate_deck()), h1, h2, None, mistakes_allowed=999,
                               callbacks=create_console_printer_callbacks())
         player.start()
     except:

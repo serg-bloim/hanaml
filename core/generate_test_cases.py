@@ -46,64 +46,108 @@ class Field(NamedTuple):
         return self.input_encoding
 
 
-def generate_test_cases(game: Replay):
-    turns = []
+class GenerateTC(HanabiPlayerCallbacks):
 
-    class GenerateTC(HanabiPlayerCallbacks):
-        all_cards_cnt: Dict[Card, int]
-        facts: Dict
+    def __init__(self) -> None:
+        self.turns = []
 
-        def init(self, player: HanabiPlayer):
-            super().init(player)
-            self.all_cards_cnt = count(player.all_cards())
 
-        def on_before_turn(self, ctx):
-            facts = {}
-            self.facts = facts
-            turns.append(facts)
-            active_player = ctx.me()
-            active_hand: Hand = self.player.get_my_hand(active_player)
-            other_hand = self.player.get_opponents_hand(active_player)
-            facts[Field('turn', type='int', input='int', input_encoding=Encoding.AS_IS)] = ctx.turn
-            facts[Field('clues', type='int', input='int')] = ctx.clues()
+class GenerateTC_v3(GenerateTC):
+    all_cards_cnt: Dict[Card, int]
+    facts: Dict
 
-            for i, c in enumerate(active_hand, start=1):
-                c: Card
-                pref = f'active_card_{i}'
-                facts[Field(pref + '_clue_color')] = c.clue.color
-                facts[Field(pref + '_clue_number')] = c.clue.number
-            for i, c in enumerate(other_hand, start=1):
-                c: Card
-                pref = f'opponent_card_{i}'
-                facts[Field(pref + '_color')] = c.color
-                facts[Field(pref + '_number')] = c.number
-                facts[Field(pref + '_clue_color')] = c.clue.color
-                facts[Field(pref + '_clue_number')] = c.clue.number
-            for color, stack in ctx.stacks().items():
-                facts[Field(f'stack_{color}', type='int')] = len(stack)
-            discard_cnt = count(ctx.get_discard())
-            for c, t in self.all_cards_cnt.items():
-                d = discard_cnt.get(c, 0)
-                availability = 1 - d / t
-                facts[Field(f'avail_{c.color}{c.number}', type='float', input='float',
-                            input_encoding=Encoding.AS_IS)] = availability
+    def init(self, player: HanabiPlayer):
+        super().init(player)
+        self.all_cards_cnt = count(player.all_cards())
 
-        def after_player_moves(self, ctx: MoveCtx, last_move: PlayerMove, taken_card: Card):
-            facts = self.facts
-            facts[Field('action_type', shape=3)] = last_move.name.lower()
-            clue_number = None
-            clue_color = None
-            if last_move == PlayerMove.CLUE:
-                if self._last_clue_val in "12345":
-                    clue_number = self._last_clue_val
-                else:
-                    clue_color = self._last_clue_val
-            facts[Field('clue_number')] = clue_number
-            facts[Field('clue_color')] = clue_color
+    def on_before_turn(self, ctx):
+        facts = {}
+        self.facts = facts
+        self.turns.append(facts)
+        active_player = ctx.me()
+        active_hand: Hand = self.player.get_my_hand(active_player)
+        other_hand = self.player.get_opponents_hand(active_player)
+        facts[self.create_field_turn()] = ctx.turn
+        facts[self.create_field_clues()] = ctx.clues()
+
+        for i, c in enumerate(active_hand, start=1):
+            c: Card
+            facts[self.create_field_active_clue_color(i)] = c.clue.color
+            facts[self.create_field_active_clue_number(i)] = c.clue.number
+        for i, c in enumerate(other_hand, start=1):
+            c: Card
+            facts[self.create_field_opponent_card_color(i)] = c.color
+            facts[self.create_field_opponent_card_number(i)] = c.number
+            facts[self.create_field_opponent_card_clue_color(i)] = c.clue.color
+            facts[self.create_field_opponent_card_clue_number(i)] = c.clue.number
+        for color, stack in ctx.stacks().items():
+            facts[self.create_field_stack(color)] = len(stack)
+        discard_cnt = count(ctx.get_discard())
+        for c, t in self.all_cards_cnt.items():
+            d = discard_cnt.get(c, 0)
+            availability = 1 - d / t
+            facts[self.create_field_avail(c)] = availability
+
+    def create_field_avail(self, c):
+        return Field(f'avail_{c.color}{c.number}', type='float', input='float',
+                     input_encoding=Encoding.AS_IS)
+
+    def create_field_stack(self, color):
+        return Field(f'stack_{color}', type='int')
+
+    def create_field_opponent_card_clue_number(self, i):
+        return Field(f'opponent_card_{i}' + '_clue_number')
+
+    def create_field_opponent_card_clue_color(self, i):
+        return Field(f'opponent_card_{i}' + '_clue_color')
+
+    def create_field_opponent_card_number(self, i):
+        return Field(f'opponent_card_{i}' + '_number')
+
+    def create_field_opponent_card_color(self, i):
+        return Field(f'opponent_card_{i}' + '_color')
+
+    def create_field_active_clue_number(self, i):
+        return Field(f'active_card_{i}' + '_clue_number')
+
+    def create_field_active_clue_color(self, i):
+        return Field(f'active_card_{i}' + '_clue_color')
+
+    def create_field_clues(self):
+        return Field('clues', type='int', input='int')
+
+    def create_field_turn(self):
+        return Field('turn', type='int', input='int', input_encoding=Encoding.AS_IS)
+
+    def after_player_moves(self, ctx: MoveCtx, last_move: PlayerMove, taken_card: Card):
+        facts = self.facts
+        facts[Field('action_type', shape=3)] = last_move.name.lower()
+        clue_number = None
+        clue_color = None
+        if last_move == PlayerMove.CLUE:
+            if self._last_clue_val in "12345":
+                clue_number = self._last_clue_val
+            else:
+                clue_color = self._last_clue_val
+        facts[Field('clue_number')] = clue_number
+        facts[Field('clue_color')] = clue_color
+        try:
             facts[Field('play_card')] = self._last_played_card_pos if last_move.removes_card() else None
+        except:
+            pass
 
-    run_replay(game, callbacks=GenerateTC())
-    return turns
+
+class GenerateTC_v4(GenerateTC_v3):
+
+    def create_field_stack(self, color):
+        return Field(f'stack_{color}', type='int', input_encoding=Encoding.CATEGORY)
+
+
+def generate_test_cases(game: Replay, ver='v3'):
+    versions = {'v3': GenerateTC_v3(), 'v4': GenerateTC_v4()}
+    generator: GenerateTC = versions[ver]
+    run_replay(game, callbacks=generator)
+    return generator.turns
 
 
 __metadata_headers = ['field', 'type', 'input', 'shape', 'encoding']

@@ -12,7 +12,7 @@ from util.core import find_root_dir
 class MyTestCase(unittest.TestCase):
     def test_convert_replay(self):
         replayes_dir = find_root_dir() / 'data/replays'
-        table_id = '337509758'
+        table_id = '386900955'
         with open(find_root_dir() / (f'data/replays/raw_{table_id}.json'), 'r') as f:
             data = json.load(f)
             replay_json = convert_hanabi_replay(data)

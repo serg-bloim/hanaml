@@ -115,6 +115,11 @@ class HanabiPlayerCallbacks:
         self._last_played_card_pos = card_pos
         self._last_play_err = err
 
+    def after_player_discards(self, client, card_pos, card, err):
+        self._last_played_card = card
+        self._last_played_card_pos = card_pos
+        self._last_play_err = err
+
 
 class Deck:
     def take(self) -> Card:
@@ -144,7 +149,8 @@ class HanabiPlayer:
     __last_move: PlayerMove
 
     def __init__(self, p1: ClassicHanabi2PClient, p2: ClassicHanabi2PClient, deck: Deck, h1: Hand, h2: Hand,
-                 stacks=None, mistakes=0, callbacks=HanabiPlayerCallbacks(), cards_in_deck=40):
+                 stacks=None, mistakes=0, callbacks=HanabiPlayerCallbacks(), cards_in_deck=40, mistakes_allowed=3):
+        self.mistakes_allowed = mistakes_allowed
         self.__last_turns = None
         self.__last_move = None
         self.__clients = [p1, p2]
@@ -194,7 +200,7 @@ class HanabiPlayer:
         return self.get_my_hand(self.get_opponent(me))
 
     def game_over(self):
-        if self.mistakes == 3:
+        if self.mistakes == self.mistakes_allowed:
             return True
         if all(len(s) == 5 for s in self.stacks.values()):
             return True
@@ -248,6 +254,7 @@ class HanabiPlayer:
         card = hand.remove(card_pos)
         self.add_to_discard(card)
         self.clues += 1
+        self.callbacks.after_player_discards(client, card_pos, card, None)
 
     def do_clue(self, client, clue_val):
         self.callbacks.on_player_clues(client, clue_val)
@@ -331,6 +338,9 @@ class MoveCtx:
     def __get_opponents_hand(self):
         return self.__player.get_opponents_hand(self.__client)
 
+    def mistakes(self):
+        return self.__player.mistakes
+
 
 def run_replay(rep: Replay, callbacks=HanabiPlayerCallbacks()):
     p1 = ReplayPlayer(rep, player_index=0)
@@ -385,7 +395,7 @@ def create_console_printer_callbacks():
             print(
                 f"Player {ctx.me().get_name()} makes {last_move} move.{take}")
 
-            print(f"Clues: {ctx.clues()}")
+            print(f"Clues: {ctx.clues()}  Mistakes: {ctx.mistakes()}")
 
         def after_player_plays(self, client, card_pos, card, err):
             mistake = ""

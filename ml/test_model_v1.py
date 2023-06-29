@@ -14,21 +14,19 @@ from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
-    model_type = 'action'
-    model_ver = 'v3'
+    model_type = 'clue'
+    model_ver = 'v4'
     model_epochs = 5000
+    model_name_suffix = '_100x5'
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')
 
     def test_create_model(self):
-        epochs = 5000
+        epochs = 10000
 
-        train_ds, test_ds, fields_map, label_enc = self.create_data()
+        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data()
         [(train_features, label_batch)] = train_ds.take(1)
-        print('Every feature:', list(train_features.keys()))
-        print('A batch of turns:', train_features['active_card_1_clue_color'])
-        print('A batch of targets:', label_batch)
 
         all_inputs = []
         encoded_features = []
@@ -38,20 +36,24 @@ class MyTestCase(unittest.TestCase):
             all_inputs.append(inp)
             encoded_features.append(encoded)
         all_features = tf.keras.layers.concatenate(encoded_features)
-        x = tf.keras.layers.Dense(20, activation="relu")(all_features)
-        x = tf.keras.layers.Dense(20, activation="relu")(x)
-        x = tf.keras.layers.Dense(20, activation="relu")(x)
+        x = tf.keras.layers.Dense(30, activation="relu")(all_features)
+        x = tf.keras.layers.Dense(30, activation="relu")(x)
+        # x = tf.keras.layers.Dense(30, activation="relu")(x)
+        # x = tf.keras.layers.Dense(50, activation="relu")(x)
+        # x = tf.keras.layers.Dense(50, activation="relu")(x)
         x = tf.keras.layers.Dropout(0.5)(x)
         output = tf.keras.layers.Dense(label_enc.vocabulary_size(), activation='softmax')(x)
         model = tf.keras.Model(all_inputs, output)
         model.compile(optimizer='adam',
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=['acc'])
-        model_prefix = f"{self.model_type}_{self.model_ver}_"
+        model_prefix = f"{self.model_type}_{self.model_ver}{self.model_name_suffix}_"
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True, to_file=model_prefix + ".png")
-        train_model(model, train_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=100)
+        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000,
+                    checkpoint_every_n_epochs=100)
 
-    def create_data(self, lbl_encoder:StringLookup = None) -> Tuple[DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:
+    def create_data(self, lbl_encoder: StringLookup = None) -> Tuple[
+        DatasetV1Adapter, DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:
         provider = {'action': create_data_action,
                     'play': create_data_play,
                     'clue': create_data_clue,
@@ -61,29 +63,29 @@ class MyTestCase(unittest.TestCase):
     def test_improve_model(self):
         epochs = 0
         model_name = f'{self.model_type}_{self.model_ver}_{self.model_epochs}'
-        model, lbl_encoder = load_model(find_root_dir().joinpath(f'model/{model_name}'))
-        train_ds, test_ds, fields_map, label_enc = self.create_data(lbl_encoder)
-        train_model(model, train_ds, test_ds, epochs, label_enc, f"{self.model_type}_{self.model_ver}_",
+        model, lbl_encoder, _ = load_model(find_root_dir().joinpath(f'model/{model_name}'))
+        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data(lbl_encoder)
+        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, f"{self.model_type}_{self.model_ver}_",
                     save_each_n_epochs=1000,
                     starting_epoch=self.model_epochs)
 
     def test_run_existing_models(self):
         output = []
-        model_ver = "v3"
+        model_ver = "v4"
         for model_dir in find_root_dir().joinpath(f'model').glob(f"{self.model_type}_{model_ver}*"):
-            model = tf.keras.models.load_model(model_dir)
-            train_ds, test_ds, fields_map, label_enc = self.create_data()
-            loss, accuracy, *_ = model.evaluate(test_ds)
+            model, enc, _ = load_model(model_dir)
+            train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data(enc)
+            loss, accuracy, *_ = model.evaluate(train_ds)
             output.append([model_dir.name, loss, accuracy])
         print(tabulate.tabulate(output, headers="Name Loss Accuracy".split()))
 
     def test_predict_existing_model(self):
-        model_ver = "v3"
-        epoch = 17000
-        model_dir = find_root_dir() / f'model/discard_{model_ver}_{epoch}'
-        model: tf.keras.Model = tf.keras.models.load_model(model_dir)
+        model_ver = "v4"
+        epoch = 1600
+        model_dir = find_root_dir() / f'model/action_{model_ver}_{epoch}'
+        model, encoder, custom_objs = load_model(model_dir)
         test_ds: tf.data.Dataset
-        train_ds, test_ds, fields_map, label_enc = self.create_data()
+        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data()
         test_ds_unbatched = test_ds.unbatch()
         vocabulary = label_enc.get_vocabulary()
         actual_labels = [vocabulary[row[1].numpy()] for row in test_ds_unbatched]
