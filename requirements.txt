@@ -8,3 +8,4 @@ pydot
 selenium
 plotly
 progressbar2
+tabulate
