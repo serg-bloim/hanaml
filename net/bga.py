@@ -18,14 +18,14 @@ class RequestLimitReached(ValueError):
     pass
 
 
-def download_game_replay(site_ver, table_id, player_id, comments_id, mock_response=None, delay=1):
+def download_game_replay(site_ver, table_id, player_id, comments_id, mock_response=None, delay=1, acc=None):
     if mock_response:
         resp = NamedTuple('resp')
         with open(find_root_dir() / f'data/replays/mock.{mock_response}.html', 'r') as f:
             resp.text = f.read()
     else:
         url = 'https://boardgamearena.com/archive/replay/' + site_ver + '/'
-        session = auth()
+        session = auth(acc) if acc else auth()
         params = dict(
             table=table_id,
             player=player_id,
@@ -73,6 +73,7 @@ def auth(acc='just_learning'):
             'x-requested-with': 'XMLHttpRequest'
         }
     }
+    s.proxies = dict(https='socks5://173.212.234.94:60523')
     s.headers = accs[acc]
     return s
 

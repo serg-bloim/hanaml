@@ -1,5 +1,6 @@
 import csv
 import itertools
+import random
 import sys
 import unittest
 from collections import Counter
@@ -203,11 +204,15 @@ class MyTestCase(unittest.TestCase):
             writer.writerows([[t.site_ver, t.table_id, t.player_ids()[0]] for t in new_classic_2x2])
 
     def test_download_replays(self):
+        accs = ['just_learning']
         with open(find_root_dir() / 'data/replays/download.csv', 'r') as f:
             reader = csv.DictReader(f)
             downloaded = 0
             skipped = 0
             for i, row in enumerate(reader, start=1):
+                if len(accs) == 0:
+                    print("Not enough accounts to continue", file=sys.stderr)
+                    break
                 site_ver = row['site_ver']
                 table_id = row['table_id']
                 player_id = row['player_id']
@@ -215,13 +220,15 @@ class MyTestCase(unittest.TestCase):
                     print(f"{i: 3} File for table {table_id} exists", file=sys.stderr)
                     skipped += 1
                     continue
+                acc = random.choice(accs)
                 try:
                     print(f"{i: 3} Start downloading {table_id}")
-                    download_game_replay(site_ver, table_id, player_id, '')
+                    download_game_replay(site_ver, table_id, player_id, '', acc=acc)
                     downloaded += 1
                     print(f"{i: 3} Finished downloading {table_id}")
                 except RequestLimitReached as err:
-                    print(f"Error downloading {table_id}\nReached the limit of requests")
+                    print(f"Error downloading {table_id}\nReached the limit of requests for acc {acc}")
+                    accs.remove(acc)
                     break
                 except Exception as e:
                     error_file = find_root_dir / f'data/replays/error_{table_id}.html'

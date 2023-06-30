@@ -4,6 +4,7 @@ import unittest
 from core.generate_test_cases import generate_test_cases, save_test_cases
 from core.player import run_replay, create_console_printer_callbacks
 from core.replay import load_replay, load_all_replays
+from ml.ml_util import load_dataframe
 from util.core import find_root_dir
 
 
@@ -42,6 +43,15 @@ class MyTestCase(unittest.TestCase):
                 tc_file = tc_dir / f'{name}_{replay.table_id}.tcsv'
                 with open(tc_file, 'w') as f:
                     save_test_cases(f, turns)
+
+    def test_analyze_data_distribution_action(self):
+        import plotly.graph_objects as go
+        df, fields_map = load_dataframe('v4')
+        fig = go.Figure()
+        for ds in df.dataset.unique():
+            fig.add_trace(go.Histogram(x=df[df.dataset == ds].action_type, name=ds))
+        fig.update_layout(barmode='stack')
+        fig.show()
 
 
 if __name__ == '__main__':
