@@ -14,6 +14,10 @@ from util.core import find_root_dir
 HANABI_GAME_ID = 1015
 
 
+class RequestLimitReached(ValueError):
+    pass
+
+
 def download_game_replay(site_ver, table_id, player_id, comments_id, mock_response=None, delay=1):
     if mock_response:
         resp = NamedTuple('resp')
@@ -54,10 +58,9 @@ def download_game_replay(site_ver, table_id, player_id, comments_id, mock_respon
                 with open(filename, "w") as file:
                     file.write(json.dumps({'game_setup': game_setup, 'game_log': gamelog}))
                     return
-    error_file = filedir / f'error_{table_id}.html'
-    with open(error_file, 'w') as f:
-        f.write(resp.text)
-    raise ValueError(f"Cannot parse response, saved it to the file {error_file}")
+    elif 'You have reached a limit' in resp.text:
+        raise RequestLimitReached()
+    raise ValueError(f"Cannot parse response", resp.text)
 
 
 @cache

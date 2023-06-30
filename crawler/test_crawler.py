@@ -10,7 +10,8 @@ import tabulate
 
 from core.domain import write_player_tables_csv, read_player_tables_csv, BgaTable, read_table_info, read_players, \
     update_players, CrawlerPlayer, read_table_lists_by_owner
-from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id, load_table_info, download_game_replay
+from net.bga import stream_player_tables, HANABI_GAME_ID, lookup_player_id, load_table_info, download_game_replay, \
+    RequestLimitReached
 from util.core import find_root_dir
 
 
@@ -204,21 +205,31 @@ class MyTestCase(unittest.TestCase):
     def test_download_replays(self):
         with open(find_root_dir() / 'data/replays/download.csv', 'r') as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            downloaded = 0
+            skipped = 0
+            for i, row in enumerate(reader, start=1):
                 site_ver = row['site_ver']
                 table_id = row['table_id']
                 player_id = row['player_id']
                 if (find_root_dir() / f'data/replays/raw_{table_id}.json').exists():
-                    print(f"File for table {table_id} exists", file=sys.stderr)
+                    print(f"{i: 3} File for table {table_id} exists", file=sys.stderr)
+                    skipped += 1
                     continue
                 try:
-                    print(f"Start downloading {table_id}")
+                    print(f"{i: 3} Start downloading {table_id}")
                     download_game_replay(site_ver, table_id, player_id, '')
-                    print(f"Finished downloading {table_id}")
-                except:
-                    err = sys.exc_info()[1]
-                    print(f"Error downloading {table_id}\n{err}")
+                    downloaded += 1
+                    print(f"{i: 3} Finished downloading {table_id}")
+                except RequestLimitReached as err:
+                    print(f"Error downloading {table_id}\nReached the limit of requests")
                     break
+                except Exception as e:
+                    error_file = find_root_dir / f'data/replays/error_{table_id}.html'
+                    print(f"Cannot download the table {table_id}. Saved the error to the file {error_file}")
+                    with open(error_file, 'w') as f:
+                        print(e, file=f)
+                    break
+            print(f"Skipped {skipped} tables, downloaded {downloaded} tables")
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ class MyTestCase(unittest.TestCase):
                 data = json.load(f)
                 replay_json = convert_hanabi_replay(data)
                 with open(replayes_dir / f'replay_{table_id}.yml', 'w') as f:
-                    yaml.safe_dump(replay_json, f,sort_keys=False)
+                    yaml.safe_dump(replay_json, f, sort_keys=False)
 
 
 if __name__ == '__main__':

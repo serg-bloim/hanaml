@@ -3,12 +3,13 @@ import tensorflow as tf
 from ml.ml_util import create_input_pipeline, train_model, create_data_action
 from util.core import find_root_dir
 
-model_type = 'clue'
+model_type = 'action'
 model_ver = 'v4'
 model_epochs = 5000
 model_name_suffix = '_100x5'
 epochs = 10000
 
+tf.get_logger().setLevel('INFO')
 train_ds, val_ds, test_ds, fields_map, label_enc = create_data_action(model_ver)
 [(train_features, label_batch)] = train_ds.take(1)
 
