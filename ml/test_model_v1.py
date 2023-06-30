@@ -14,10 +14,10 @@ from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
-    model_type = 'clue'
+    model_type = 'action'
     model_ver = 'v4'
     model_epochs = 5000
-    model_name_suffix = '_100x5'
+    model_name_suffix = '_test'
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')

@@ -21,8 +21,8 @@ class MyTestCase(unittest.TestCase):
 
     def test_gen_testcases_all_files(self):
         replays = load_all_replays()
-        validation_slice = 0.17
-        test_slice = 0.17
+        validation_slice = 0.1
+        test_slice = 0.02
         tc_dir = find_root_dir() / 'data/testcases' / self.ver
         tc_dir.mkdir(parents=True, exist_ok=True)
         random.shuffle(replays)
