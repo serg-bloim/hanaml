@@ -32,8 +32,8 @@ def download_game_replay(site_ver, table_id, player_id, comments_id, mock_respon
             comments=comments_id
         )
         time.sleep(delay)
-        resp = session.get(url, params=params)
         try:
+            resp = session.get(url, params=params)
             resp.raise_for_status()
         except requests.exceptions.HTTPError as err:
             raise SystemExit(err)
@@ -71,9 +71,24 @@ def auth(acc='just_learning'):
             'cookie': 'PHPSESSID=vsg6m40cd2s7qhqlgth1ojda2l; _ga=GA1.1.864415604.1686604926; TournoiEnLigne_sso_user=just_learning%242%24neveh88879%40ozatvn.com; TournoiEnLigne_sso_id=ade5a2f84cf247904209e79cc0ee119b; TournoiEnLigneidt=UdqAoXo44Ah2TQl; TournoiEnLignetkt=MqpPjgdhveLmR8YSv7RpHQTNs1JUTKTQRsUjrR0Jr4xXUc85x5JPf90jyvAHhyJn; TournoiEnLigneid=ZEVk36z5D6JRJVB; TournoiEnLignetk=bVLBvxF4zKtuK4lT5Q9zLJsF1D9tU4EIo8QY9Zul7xNjopDv6kQfbDDzR43uxj1n; _ga_DWXD9R5L7D=GS1.1.1686604926.1.1.1686607436.43.0.0; PHPSESSID=og2pv95ks7udqn910pj7kpseco',
             'x-request-token': 'UdqAoXo44Ah2TQl',
             'x-requested-with': 'XMLHttpRequest'
+        },
+        'petite_armoire': {
+            'cookie': 'PHPSESSID=chjfvtqhra8mkhjcqs7lr3k750; _ga=GA1.1.382199043.1688287453; TournoiEnLigne_sso_user=petite_armoire$3$togoto2469@devswp.com; TournoiEnLigne_sso_id=d9aff2f3d502215a0235868a68e61edb; TournoiEnLigneidt=82cq7zne40gBaO0; TournoiEnLignetkt=HYK36ZzhUJFU7PvzkGL8SnYQFyLRwAEuzlIaaGCI4gRUMKaAN1qUXMqh4rajp1LD; TournoiEnLigneid=0QAd2IC8GTT6K0A; TournoiEnLignetk=TPX9LvScIV0BzXoVCnN5KPMiHzF0xuCwekNd1jH3thl2eqr9roLJ1txO8K7n5KQ2; _ga_DWXD9R5L7D=GS1.1.1688287452.1.1.1688287531.41.0.0',
+            'x-request-token': '82cq7zne40gBaO0',
+            'x-requested-with': 'XMLHttpRequest'
+        },
+        'mouton_lent': {
+            'cookie': 'PHPSESSID=vhn8lt53cc4pm2r4se1eh0e7du; _ga=GA1.1.794991507.1688316550; TournoiEnLigne_sso_user=mouton_lent$3$spambox555+mouton_lent@mail.ru; TournoiEnLigne_sso_id=83d54a08c9f24d1c9c43e0d697d99820; TournoiEnLigneidt=TYE3ZTKgGAsVPz8; TournoiEnLignetkt=qVFLHvGPtxcsFi9P9g6ebJiIiII5Z3HU146Eo4c9GRBPa0ZWgRezS4dzwWtc9Khm; TournoiEnLigneid=Qsfre68wGYjH20k; TournoiEnLignetk=U4fflbIk6UUfY7M4OBR1543W3B68zmaJRC1jNrciXm3O4DrrpHHDo8Fx0MdyvkBR; _ga_DWXD9R5L7D=GS1.1.1688316550.1.1.1688316644.60.0.0',
+            'x-request-token': 'TYE3ZTKgGAsVPz8',
+            'x-requested-with': 'XMLHttpRequest'
+        },
+        'radio_turtle': {
+            'cookie': 'PHPSESSID=eqgb47fnmuj1i6k8urqf5smgpd; _ga=GA1.1.825923438.1688287735; TournoiEnLigne_sso_user=radio_turtle$3$lijote5686@fitwl.com; TournoiEnLigne_sso_id=e15be5180a98287780f1cf308a8225e1; TournoiEnLigneidt=n6ICJqm6LkTBVjd; TournoiEnLignetkt=rvzRuZChccDM8z1HIHrZcBEyWTVzbB4wDLbpwocHlT5DPJhSrm9SfJv1xV82MYa2; TournoiEnLigneid=RlMERsrzXG0cgRK; TournoiEnLignetk=nPEAbXvI1CMAo8NfQtP9ENHVb8uKBunxSE4m3Za3Q1FDsYuMK3a66L8JaW0nKerU; _ga_DWXD9R5L7D=GS1.1.1688287734.1.1.1688287773.21.0.0',
+            'x-request-token': 'n6ICJqm6LkTBVjd',
+            'x-requested-with': 'XMLHttpRequest'
         }
     }
-    s.proxies = dict(https='socks5://173.212.234.94:60523')
+    s.proxies = dict(https='socks5://142.54.228.193:4145')
     s.headers = accs[acc]
     return s
 

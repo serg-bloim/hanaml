@@ -15,7 +15,7 @@ from util.core import find_root_dir
 
 
 class MyTestCase(unittest.TestCase):
-    model_type = 'action'
+    model_type = 'discard'
     model_ver = 'v4'
     model_epochs = 5000
     model_name_suffix = '_test'
@@ -32,7 +32,7 @@ class MyTestCase(unittest.TestCase):
         encoded_features = []
         for feature in progressbar.progressbar(list(train_features.keys()), prefix="Creating input pipelines"):
             field = fields_map[feature]
-            inp, encoded = create_input_pipeline(field, train_ds)
+            inp, encoded = create_input_pipeline(field, train_ds, self.model_ver)
             all_inputs.append(inp)
             encoded_features.append(encoded)
         all_features = tf.keras.layers.concatenate(encoded_features)

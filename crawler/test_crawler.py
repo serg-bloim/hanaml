@@ -8,6 +8,7 @@ from typing import List
 
 import progressbar
 import tabulate
+from requests import ConnectTimeout
 
 from core.domain import write_player_tables_csv, read_player_tables_csv, BgaTable, read_table_info, read_players, \
     update_players, CrawlerPlayer, read_table_lists_by_owner
@@ -204,7 +205,7 @@ class MyTestCase(unittest.TestCase):
             writer.writerows([[t.site_ver, t.table_id, t.player_ids()[0]] for t in new_classic_2x2])
 
     def test_download_replays(self):
-        accs = ['just_learning']
+        accs = ['mouton_lent']
         with open(find_root_dir() / 'data/replays/download.csv', 'r') as f:
             reader = csv.DictReader(f)
             downloaded = 0
@@ -222,16 +223,19 @@ class MyTestCase(unittest.TestCase):
                     continue
                 acc = random.choice(accs)
                 try:
-                    print(f"{i: 3} Start downloading {table_id}")
+                    print(f"{i: 3} Start downloading {table_id} using {acc}")
                     download_game_replay(site_ver, table_id, player_id, '', acc=acc)
                     downloaded += 1
                     print(f"{i: 3} Finished downloading {table_id}")
                 except RequestLimitReached as err:
                     print(f"Error downloading {table_id}\nReached the limit of requests for acc {acc}")
                     accs.remove(acc)
-                    break
+                    continue
+                except ConnectTimeout as err:
+                    print(f"Timeout during downloading the table {table_id}")
+                    continue
                 except Exception as e:
-                    error_file = find_root_dir / f'data/replays/error_{table_id}.html'
+                    error_file = find_root_dir() / f'data/replays/error_{table_id}.html'
                     print(f"Cannot download the table {table_id}. Saved the error to the file {error_file}")
                     with open(error_file, 'w') as f:
                         print(e, file=f)
