@@ -1,3 +1,4 @@
+import itertools
 import json
 import pathlib
 import shutil
@@ -50,8 +51,9 @@ class ModelContainer:
         pass
 
 
-def create_custom_data(df, ver, target_column, label_enc: StringLookup):
+def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, permutate_colors=False):
     columns2remove = 'action_type clue_number clue_color play_card'.split()
+
     try:
         columns2remove.remove(target_column)
     except:
@@ -61,16 +63,80 @@ def create_custom_data(df, ver, target_column, label_enc: StringLookup):
     batch_size = 5
     dataset_lbl = df.pop('dataset')
     df_train = df[dataset_lbl == 'train']
+    if permutate_colors:
+        class ColoredFields:
+            def __init__(self, color) -> None:
+                self.color = color
+                self.stack = []
+                self.avail_1 = []
+                self.avail_2 = []
+                self.avail_3 = []
+                self.avail_4 = []
+                self.avail_5 = []
+
+        replace_field_names = [tpl % (n + 1) for n in range(5) for tpl in
+                               ['active_card_%s_clue_color', 'opponent_card_%s_color', 'opponent_card_%s_clue_color']]
+        if 'clue_color' in df_train:
+            replace_field_names.append('clue_color')
+        copy_field_names = ['clues', 'turn', 'action_type', 'clue_number', 'play_card']
+        for n in range(5):
+            copy_field_names.append(f"active_card_{n + 1}_clue_number")
+            copy_field_names.append(f"opponent_card_{n + 1}_clue_number")
+            copy_field_names.append(f"opponent_card_{n + 1}_number")
+        copy_field_names = [fn for fn in copy_field_names if fn in df_train]
+
+        def permutate(rec):
+            colors = ['r', 'g', 'y', 'b', 'w']
+            replace_fields: Dict[str, List] = {f: [] for f in replace_field_names}
+            copy_fields: Dict[str, List] = {f: [] for f in copy_field_names}
+            shuffle_fields = [ColoredFields(c) for c in colors]
+            perm: List[ColoredFields]
+            for perm in itertools.permutations(shuffle_fields):
+                try:
+                    mapping: Dict[str, ColoredFields] = {c: p for c, p in zip(colors, perm)}
+
+                    for name, data in copy_fields.items():
+                        val = rec.__getattribute__(name)
+                        data.append(val)
+                    for name, data in replace_fields.items():
+                        val = rec.__getattribute__(name)
+                        if val != 'NA':
+                            val = mapping[val].color
+                        data.append(val)
+                    for c, f in mapping.items():
+                        f.stack.append(rec.__getattribute__('stack_' + c))
+                        f.avail_1.append(rec.__getattribute__(f'avail_{c}1'))
+                        f.avail_2.append(rec.__getattribute__(f'avail_{c}2'))
+                        f.avail_3.append(rec.__getattribute__(f'avail_{c}3'))
+                        f.avail_4.append(rec.__getattribute__(f'avail_{c}4'))
+                        f.avail_5.append(rec.__getattribute__(f'avail_{c}5'))
+                except Exception as e:
+                    pass
+            data = copy_fields
+            data.update(replace_fields)
+            for f in shuffle_fields:
+                data[f'stack_{f.color}'] = f.stack
+                data[f'avail_{f.color}1'] = f.avail_1
+                data[f'avail_{f.color}2'] = f.avail_2
+                data[f'avail_{f.color}3'] = f.avail_3
+                data[f'avail_{f.color}4'] = f.avail_4
+                data[f'avail_{f.color}5'] = f.avail_5
+            return pd.DataFrame(data)
+
+        df_train = pd.concat([permutate(rec) for rec in
+                              progressbar.progressbar(df_train.itertuples(), max_value=len(df_train),
+                                                      prefix="color permutations")], axis=0, copy=False)
+        print(f"Done concat {len(df_train)}")
     df_test = df[dataset_lbl == 'test']
     df_val = df[dataset_lbl == 'val']
     train_ds: DatasetV1Adapter
-    train_ds, label_enc = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column,
-                                        target_encoder=label_enc)
-    val_ds, label_enc = df_to_dataset(df_val, batch_size=batch_size, target_name=target_column, shuffle=False,
-                                      target_encoder=label_enc)
-    test_ds, label_enc = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column, shuffle=False,
-                                       target_encoder=label_enc)
-    return train_ds, val_ds, test_ds, label_enc
+    train_ds, lbl_encoder = df_to_dataset(df_train, batch_size=batch_size, target_name=target_column,
+                                          target_encoder=lbl_encoder)
+    val_ds, lbl_encoder = df_to_dataset(df_val, batch_size=batch_size, target_name=target_column, shuffle=False,
+                                        target_encoder=lbl_encoder)
+    test_ds, lbl_encoder = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column, shuffle=False,
+                                         target_encoder=lbl_encoder)
+    return train_ds, val_ds, test_ds, lbl_encoder
 
 
 def load_dataframe(ver):
@@ -89,35 +155,35 @@ def load_dataframe(ver):
     return df, fields_map
 
 
-def create_data_action(ver, lbl_encoder = None):
+def create_data_action(ver, **kwargs):
     target_column = 'action_type'
     df, fields_map = load_dataframe(ver)
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, ver, target_column, lbl_encoder)
+    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_play(ver, lbl_encoder = None):
+def create_data_play(ver, **kwargs):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'play']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, ver, target_column, lbl_encoder)
+    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_clue(ver, lbl_encoder = None):
+def create_data_clue(ver, **kwargs):
     target_column = 'clue_val'
     df, fields_map = load_dataframe(ver)
     df['clue_val'] = df.clue_number.fillna(df.clue_color)
     df = df[df['action_type'] == 'clue']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, ver, target_column, lbl_encoder)
+    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
-def create_data_discard(ver, lbl_encoder = None):
+def create_data_discard(ver, **kwargs):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'discard']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, ver, target_column, lbl_encoder)
+    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
     return train_ds, val_ds, test_ds, fields_map, label_enc
 
 
@@ -150,7 +216,7 @@ def create_input_pipeline(field: Field, ds: tf.data.Dataset):
         else:
             raise ValueError(f"Category is not supported for type ({field.type})")
         feature_ds = ds.map(lambda x, y: x[field.name])
-        index.adapt(feature_ds)
+        index.adapt(feature_ds.unique().as_numpy_iterator())
 
         encoded_f = lambda x: tf.keras.layers.CategoryEncoding(num_tokens=index.vocabulary_size())(index(x))
         encoded = encoded_f(input)

@@ -3,6 +3,7 @@ import unittest
 from typing import Tuple, Any
 
 import numpy
+import progressbar
 import tabulate
 import tensorflow as tf
 from keras.layers import StringLookup
@@ -25,12 +26,11 @@ class MyTestCase(unittest.TestCase):
     def test_create_model(self):
         epochs = 10000
 
-        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data()
+        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data(permutate_colors=True)
         [(train_features, label_batch)] = train_ds.take(1)
-
         all_inputs = []
         encoded_features = []
-        for feature in train_features.keys():
+        for feature in progressbar.progressbar(list(train_features.keys()), prefix="Creating input pipelines"):
             field = fields_map[feature]
             inp, encoded = create_input_pipeline(field, train_ds)
             all_inputs.append(inp)
@@ -55,13 +55,13 @@ class MyTestCase(unittest.TestCase):
         train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000,
                     checkpoint_every_n_epochs=100)
 
-    def create_data(self, lbl_encoder: StringLookup = None) -> Tuple[
+    def create_data(self, lbl_encoder=None, permutate_colors=False, **kwargs) -> Tuple[
         DatasetV1Adapter, DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:
         provider = {'action': create_data_action,
                     'play': create_data_play,
                     'clue': create_data_clue,
                     'discard': create_data_discard}[self.model_type]
-        return provider(self.model_ver, lbl_encoder)
+        return provider(self.model_ver, lbl_encoder=lbl_encoder, permutate_colors=permutate_colors, **kwargs)
 
     def test_improve_model(self):
         epochs = 0
