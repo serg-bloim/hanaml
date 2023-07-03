@@ -203,33 +203,24 @@ def create_input_pipeline(field: Field, ds: tf.data.Dataset, data_ver):
     dtype = to_dtype(field.type)
     input = tf.keras.Input(shape=(1,), name=field.name, dtype=dtype)
     tf.keras.layers.InputLayer(input_shape=(1,), name=field.name, dtype=dtype)
-    index = None
     encoded = input
     enc = field.get_encoding()
 
     if enc == Encoding.CATEGORY:
         max_tokens = field.shape or None
         if field.type == 'str':
-            index = tf.keras.layers.StringLookup(max_tokens=max_tokens)
+            index = tf.keras.layers.StringLookup(max_tokens=max_tokens, vocabulary=list(field.vocabulary))
         elif field.type == 'int':
-            index = tf.keras.layers.IntegerLookup(max_tokens=max_tokens)
+            index = tf.keras.layers.IntegerLookup(max_tokens=max_tokens, vocabulary=[int(x) for x in field.vocabulary])
         else:
             raise ValueError(f"Category is not supported for type ({field.type})")
-        import diskcache as dc
-        with dc.Cache(find_root_dir() / f'data/cache/fields_{data_ver}') as cache:
-            if field.name not in cache:
-                feature_ds = ds.map(lambda x, y: x[field.name])
-                values = np.array([x[0] for x in feature_ds.unbatch().unique().as_numpy_iterator() if x[0] != b'NA'])
-                values.sort()
-                cache.set(field.name, values)
-            index.adapt(cache[field.name])
 
         encoded_f = lambda x: tf.keras.layers.CategoryEncoding(num_tokens=index.vocabulary_size())(index(x))
         encoded = encoded_f(input)
     elif enc == Encoding.NORMALIZE:
         encoded = tf.keras.layers.Normalization(axis=None)
         feature_ds = ds.map(lambda x, y: x[field.name])
-        index.adapt(feature_ds)
+        encoded.adapt(feature_ds)
     elif enc == Encoding.AS_IS and field.type == 'int':
         encoded = tf.cast(input, dtype='float32')
 
@@ -277,7 +268,8 @@ def train_model(model: tf.keras.Model, train_ds, val_ds, test_ds, epochs, label_
     if callbacks:
         all_callbacks += callbacks
 
-    model.fit(train_ds.repeat(), epochs=epochs, verbose=0, validation_data=val_ds, callbacks=all_callbacks, steps_per_epoch=epoch_size)
+    model.fit(train_ds.repeat(), epochs=epochs, verbose=0, validation_data=val_ds, callbacks=all_callbacks,
+              steps_per_epoch=epoch_size)
     if epochs > 0:
         save_model(model, model_naming(starting_epoch + epochs), label_enc)
     loss, accuracy = model.evaluate(test_ds)

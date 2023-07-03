@@ -35,6 +35,7 @@ class Field(NamedTuple):
     input: str = 'category'
     shape: int = 0
     input_encoding: Encoding = Encoding.AUTO
+    vocabulary: tuple = None
 
     def get_encoding(self) -> Encoding:
         if self.input_encoding == Encoding.AUTO:
@@ -93,25 +94,25 @@ class GenerateTC_v3(GenerateTC):
                      input_encoding=Encoding.AS_IS)
 
     def create_field_stack(self, color):
-        return Field(f'stack_{color}', type='int')
+        return Field(f'stack_{color}', type='int', vocabulary=(1, 2, 3, 4, 5))
 
     def create_field_opponent_card_clue_number(self, i):
-        return Field(f'opponent_card_{i}' + '_clue_number')
+        return Field(f'opponent_card_{i}' + '_clue_number', vocabulary=("1", "2", "3", "4", "5"))
 
     def create_field_opponent_card_clue_color(self, i):
-        return Field(f'opponent_card_{i}' + '_clue_color')
+        return Field(f'opponent_card_{i}' + '_clue_color', vocabulary=("r", "g", "y", "b", "w"))
 
     def create_field_opponent_card_number(self, i):
-        return Field(f'opponent_card_{i}' + '_number')
+        return Field(f'opponent_card_{i}' + '_number', vocabulary=("1", "2", "3", "4", "5"))
 
     def create_field_opponent_card_color(self, i):
-        return Field(f'opponent_card_{i}' + '_color')
+        return Field(f'opponent_card_{i}' + '_color', vocabulary=("r", "g", "y", "b", "w"))
 
     def create_field_active_clue_number(self, i):
-        return Field(f'active_card_{i}' + '_clue_number')
+        return Field(f'active_card_{i}' + '_clue_number', vocabulary=("1", "2", "3", "4", "5"))
 
     def create_field_active_clue_color(self, i):
-        return Field(f'active_card_{i}' + '_clue_color')
+        return Field(f'active_card_{i}' + '_clue_color', vocabulary=("r", "g", "y", "b", "w"))
 
     def create_field_clues(self):
         return Field('clues', type='int', input='int')
@@ -140,7 +141,7 @@ class GenerateTC_v3(GenerateTC):
 class GenerateTC_v4(GenerateTC_v3):
 
     def create_field_stack(self, color):
-        return Field(f'stack_{color}', type='int', input_encoding=Encoding.CATEGORY)
+        return Field(f'stack_{color}', type='int', input_encoding=Encoding.CATEGORY, vocabulary=(1, 2, 3, 4, 5))
 
 
 def generate_test_cases(game: Replay, ver='v3'):
@@ -150,7 +151,7 @@ def generate_test_cases(game: Replay, ver='v3'):
     return generator.turns
 
 
-__metadata_headers = ['field', 'type', 'input', 'shape', 'encoding']
+__metadata_headers = ['field', 'type', 'input', 'shape', 'encoding', 'vocabulary']
 
 
 def save_test_cases(f: TextIO, data: List[Dict[Field, Any]], save_metadata=True):
@@ -159,7 +160,8 @@ def save_test_cases(f: TextIO, data: List[Dict[Field, Any]], save_metadata=True)
     fields = list(data[0].keys())
     if save_metadata:
         headers = __metadata_headers
-        metadata = [[f.name, f.type, f.input, f.shape, f.input_encoding] for f in fields]
+        metadata = [[f.name, f.type, f.input, f.shape, f.input_encoding, ';'.join(str(x) for x in (f.vocabulary or []))]
+                    for f in fields]
         save_csv_aligned(f, metadata, headers)
         f.write('\n')
 
@@ -201,7 +203,7 @@ def load_test_cases(f: TextIO, convert_fields_to_str=True):
             yield (([v if v else None for v in (v.strip() for v in r)] for r in block))
 
     def read_fields(block):
-        return [Field(r[0], r[1], r[2], int(r[3]), Encoding(r[4])) for r in block]
+        return [Field(r[0], r[1], r[2], int(r[3]), Encoding(r[4]), tuple((r[5] or '').split(';'))) for r in block]
 
     def convert_type(v, field):
         if field.type == 'int':
@@ -215,10 +217,7 @@ def load_test_cases(f: TextIO, convert_fields_to_str=True):
     headers = next(first_block)
     fields = []
     if headers == __metadata_headers:
-        try:
-            fields = read_fields(first_block)
-        except Exception as e:
-            pass
+        fields = read_fields(first_block)
         first_block = next(blocks)
         headers = next(first_block)
     else:

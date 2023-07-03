@@ -30,7 +30,9 @@ class MyTestCase(unittest.TestCase):
         [(train_features, label_batch)] = train_ds.take(1)
         all_inputs = []
         encoded_features = []
-        for feature in progressbar.progressbar(list(train_features.keys()), prefix="Creating input pipelines"):
+        iter = list(train_features.keys())
+        iter = progressbar.progressbar(iter, prefix="Creating input pipelines")
+        for feature in iter:
             field = fields_map[feature]
             inp, encoded = create_input_pipeline(field, train_ds, self.model_ver)
             all_inputs.append(inp)
