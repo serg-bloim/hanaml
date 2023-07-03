@@ -54,7 +54,7 @@ class MyTestCase(unittest.TestCase):
         img_dir.mkdir(parents=True, exist_ok=True)
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
                                   to_file=img_dir / f"{model_prefix}.png")
-        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=1000,
+        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=500,
                     checkpoint_every_n_epochs=100)
 
     def create_data(self, lbl_encoder=None, permutate_colors=False, **kwargs) -> Tuple[

@@ -205,7 +205,7 @@ class MyTestCase(unittest.TestCase):
             writer.writerows([[t.site_ver, t.table_id, t.player_ids()[0]] for t in new_classic_2x2])
 
     def test_download_replays(self):
-        accs = ['mouton_lent']
+        accs = ['just_learning','mouton_lent', 'petite_armoire', 'radio_turtle']
         with open(find_root_dir() / 'data/replays/download.csv', 'r') as f:
             reader = csv.DictReader(f)
             downloaded = 0

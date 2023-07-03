@@ -92,26 +92,23 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
             shuffle_fields = [ColoredFields(c) for c in colors]
             perm: List[ColoredFields]
             for perm in itertools.permutations(shuffle_fields):
-                try:
-                    mapping: Dict[str, ColoredFields] = {c: p for c, p in zip(colors, perm)}
+                mapping: Dict[str, ColoredFields] = {c: p for c, p in zip(colors, perm)}
 
-                    for name, data in copy_fields.items():
-                        val = rec.__getattribute__(name)
-                        data.append(val)
-                    for name, data in replace_fields.items():
-                        val = rec.__getattribute__(name)
-                        if val != 'NA':
-                            val = mapping[val].color
-                        data.append(val)
-                    for c, f in mapping.items():
-                        f.stack.append(rec.__getattribute__('stack_' + c))
-                        f.avail_1.append(rec.__getattribute__(f'avail_{c}1'))
-                        f.avail_2.append(rec.__getattribute__(f'avail_{c}2'))
-                        f.avail_3.append(rec.__getattribute__(f'avail_{c}3'))
-                        f.avail_4.append(rec.__getattribute__(f'avail_{c}4'))
-                        f.avail_5.append(rec.__getattribute__(f'avail_{c}5'))
-                except Exception as e:
-                    pass
+                for name, data in copy_fields.items():
+                    val = rec.__getattribute__(name)
+                    data.append(val)
+                for name, data in replace_fields.items():
+                    val = rec.__getattribute__(name)
+                    if val != 'NA':
+                        val = mapping[val].color
+                    data.append(val)
+                for c, f in mapping.items():
+                    f.stack.append(rec.__getattribute__('stack_' + c))
+                    f.avail_1.append(rec.__getattribute__(f'avail_{c}1'))
+                    f.avail_2.append(rec.__getattribute__(f'avail_{c}2'))
+                    f.avail_3.append(rec.__getattribute__(f'avail_{c}3'))
+                    f.avail_4.append(rec.__getattribute__(f'avail_{c}4'))
+                    f.avail_5.append(rec.__getattribute__(f'avail_{c}5'))
             data = copy_fields
             data.update(replace_fields)
             for f in shuffle_fields:
@@ -126,6 +123,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
         df_train = pd.concat([permutate(rec) for rec in
                               progressbar.progressbar(df_train.itertuples(), max_value=len(df_train),
                                                       prefix="color permutations")], axis=0, copy=False)
+        df_train = df_train.iloc[np.random.permutation(len(df_train))]
         print(f"Done concat {len(df_train)}")
     df_test = df[dataset_lbl == 'test']
     df_val = df[dataset_lbl == 'val']

@@ -1,3 +1,5 @@
+import itertools
+import os
 import random
 import unittest
 
@@ -32,6 +34,8 @@ class MyTestCase(unittest.TestCase):
         validation = replays[:validation_len]
         test = replays[validation_len:validation_len + test_len]
         training = replays[validation_len + test_len:]
+        for f in tc_dir.iterdir():
+            os.remove(f)
         for batch, name in [(training, 'train'), (test, 'test'), (validation, 'val')]:
             for replay in batch:
                 print(f'Start processing table={replay.table_id}')
@@ -52,6 +56,11 @@ class MyTestCase(unittest.TestCase):
             fig.add_trace(go.Histogram(x=df[df.dataset == ds].action_type, name=ds))
         fig.update_layout(barmode='stack')
         fig.show()
+
+    def test_permutations(self):
+        a = [1, 2, 3, 4, 5]
+        for i, p in enumerate(itertools.permutations(a)):
+            print(f"{i: 3} {p}, {type(p)}")
 
 
 if __name__ == '__main__':

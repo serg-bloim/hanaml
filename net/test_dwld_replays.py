@@ -46,7 +46,7 @@ class BGATestCase(unittest.TestCase):
             self.assertTrue(actual == expected, "Jsons are different")
         pass
 
-    def test_what_is_my_ip(self):
+    def test_test_proxies(self):
         proxies = """68.1.210.163:4145
 72.206.181.103:4145
 173.212.234.94:60523

@@ -88,7 +88,7 @@ def auth(acc='just_learning'):
             'x-requested-with': 'XMLHttpRequest'
         }
     }
-    s.proxies = dict(https='socks5://142.54.228.193:4145')
+    s.proxies = dict(https='socks5://173.212.234.94:60523')
     s.headers = accs[acc]
     return s
 
