@@ -19,13 +19,12 @@ class MyTestCase(unittest.TestCase):
     model_ver = 'v4'
     model_epochs = 5000
     model_name_suffix = '_test'
+    layers = [30, 30]
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')
 
-    def test_create_model(self):
-        epochs = 10000
-
+    def test_create_model(self, epochs=10000, save_n_epochs=500, checkpoint_n_epochs=100):
         train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data(permutate_colors=True)
         [(train_features, label_batch)] = train_ds.take(1)
         all_inputs = []
@@ -38,11 +37,9 @@ class MyTestCase(unittest.TestCase):
             all_inputs.append(inp)
             encoded_features.append(encoded)
         all_features = tf.keras.layers.concatenate(encoded_features)
-        x = tf.keras.layers.Dense(30, activation="relu")(all_features)
-        x = tf.keras.layers.Dense(30, activation="relu")(x)
-        # x = tf.keras.layers.Dense(30, activation="relu")(x)
-        # x = tf.keras.layers.Dense(50, activation="relu")(x)
-        # x = tf.keras.layers.Dense(50, activation="relu")(x)
+        x = all_features
+        for l_size in self.layers:
+            x = tf.keras.layers.Dense(l_size, activation="relu")(x)
         x = tf.keras.layers.Dropout(0.5)(x)
         output = tf.keras.layers.Dense(label_enc.vocabulary_size(), activation='softmax')(x)
         model = tf.keras.Model(all_inputs, output)
@@ -54,8 +51,8 @@ class MyTestCase(unittest.TestCase):
         img_dir.mkdir(parents=True, exist_ok=True)
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
                                   to_file=img_dir / f"{model_prefix}.png")
-        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=500,
-                    checkpoint_every_n_epochs=100)
+        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=save_n_epochs,
+                    checkpoint_every_n_epochs=checkpoint_n_epochs)
 
     def create_data(self, lbl_encoder=None, permutate_colors=False, **kwargs) -> Tuple[
         DatasetV1Adapter, DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:

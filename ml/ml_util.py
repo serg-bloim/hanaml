@@ -272,13 +272,14 @@ def train_model(model: tf.keras.Model, train_ds, val_ds, test_ds, epochs, label_
         save_model(model, model_naming(starting_epoch + epochs), label_enc)
     loss, accuracy = model.evaluate(test_ds)
     print(f"Test evaluation accuracy after {epochs} epochs = {accuracy}")
-    predictions = model.predict(test_ds)
-    predictions = [(np.argmax(x), max(x)) for x in predictions]
-    print(predictions)
-    labels = [l for f, l in test_ds.unbatch().as_numpy_iterator()]
-    lvocab = label_enc.get_vocabulary()
-    data = [[lvocab[x] for x in [l, p]] + [c] for l, (p, c) in zip(labels, predictions)]
-    print(tabulate.tabulate(data, headers='actual predicted certainty'.split()))
+
+    # predictions = model.predict(test_ds)
+    # predictions = [(np.argmax(x), max(x)) for x in predictions]
+    # print(predictions)
+    # labels = [l for f, l in test_ds.unbatch().as_numpy_iterator()]
+    # lvocab = label_enc.get_vocabulary()
+    # data = [[lvocab[x] for x in [l, p]] + [c] for l, (p, c) in zip(labels, predictions)]
+    # print(tabulate.tabulate(data, headers='actual predicted certainty'.split()))
 
 
 def save_model(model: tf.keras.models.Model, path, label_enc: StringLookup, **kwargs):
