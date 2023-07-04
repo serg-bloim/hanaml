@@ -127,6 +127,8 @@ class Schedule:
         if task.is_failed():
             print(f"Task {task.id()} failed")
             print(task.get_error(), file=sys.stderr)
+        else:
+            print(f"Task {task.id()} is complete succesfully")
 
 
 def run_scheduled_tasks(schedule_filepath):
