@@ -74,6 +74,8 @@ class TrainModelTask(ScheduledTask):
         test.model_type = cfg.target
         test.model_ver = cfg.data_ver
         test.model_name_suffix = ''.join(f"_{x}" for x in cfg.layers)
+        print(f"\n\nRunning task {self.id()}")
+        print(f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}\n")
         test.test_create_model(cfg.epochs, save_n_epochs=cfg.save_n_epochs, checkpoint_n_epochs=cfg.checkpoint_n_epochs)
 
 
