@@ -1,3 +1,4 @@
+import sys
 import uuid
 from typing import Dict, NamedTuple, List
 
@@ -11,7 +12,6 @@ class ScheduledTask:
     def __init__(self):
         self.__err = None
         self._id = None
-        self.__completed = False
         self._cfg = {}
 
     def update_config(self, cfg: Dict) -> bool:
@@ -34,9 +34,10 @@ class ScheduledTask:
     def run(self):
         try:
             self._exec()
-            self.__completed = True
+            self.set_state('complete')
         except Exception as e:
             self.__err = e
+            self.set_state('failed')
             return False
 
     def id(self):
@@ -73,8 +74,6 @@ class TrainModelTask(ScheduledTask):
         test.model_type = cfg.target
         test.model_ver = cfg.data_ver
         test.model_name_suffix = ''.join(f"_{x}" for x in cfg.layers)
-        print(f"Running task {self.id()}")
-        print(f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}")
         test.test_create_model(cfg.epochs, save_n_epochs=cfg.save_n_epochs, checkpoint_n_epochs=cfg.checkpoint_n_epochs)
 
 
@@ -115,7 +114,7 @@ class Schedule:
         return any(not t.completed() for t in self.tasks.values())
 
     def get_next_incomplete(self):
-        return next(t for t in self.tasks.values() if not t.completed())
+        return next(t for t in self.tasks.values() if not (t.completed() or t.is_failed()))
 
     def run_task(self, task):
         task.set_state('running')
@@ -123,6 +122,9 @@ class Schedule:
         task.run()
         task.set_state('failed' if task.is_failed() else 'complete')
         self.save()
+        if task.is_failed():
+            print(f"Task {task.id()} failed")
+            print(task.get_error(), file=sys.stderr)
 
 
 def run_scheduled_tasks(schedule_filepath):
