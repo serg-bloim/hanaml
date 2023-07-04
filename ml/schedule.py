@@ -67,13 +67,14 @@ class TrainModelTask(ScheduledTask):
         return super().update_config(cfg)
 
     def _exec(self):
-        print(f"Running task {self.id()}")
         test = MyTestCase()
         test.setUp()
         cfg = self._cfg_parsed
         test.model_type = cfg.target
         test.model_ver = cfg.data_ver
         test.model_name_suffix = ''.join(f"_{x}" for x in cfg.layers)
+        print(f"Running task {self.id()}"
+              f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}")
         test.test_create_model(cfg.epochs, save_n_epochs=cfg.save_n_epochs, checkpoint_n_epochs=cfg.checkpoint_n_epochs)
 
 
