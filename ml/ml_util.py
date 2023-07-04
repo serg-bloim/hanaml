@@ -78,7 +78,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
                                ['active_card_%s_clue_color', 'opponent_card_%s_color', 'opponent_card_%s_clue_color']]
         if 'clue_color' in df_train:
             replace_field_names.append('clue_color')
-        copy_field_names = ['clues', 'turn', 'action_type', 'clue_number', 'play_card']
+        copy_field_names = ['clues', 'turn', 'action_type', 'clue_number', 'play_card', 'clue_val']
         for n in range(5):
             copy_field_names.append(f"active_card_{n + 1}_clue_number")
             copy_field_names.append(f"opponent_card_{n + 1}_clue_number")
