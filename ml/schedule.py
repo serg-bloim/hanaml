@@ -23,7 +23,7 @@ class ScheduledTask:
         return self._cfg
 
     def completed(self):
-        return self.__completed
+        return self._cfg.get('state') == 'complete'
 
     def is_failed(self):
         return self.__err is not None
