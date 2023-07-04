@@ -74,11 +74,12 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
                 self.avail_4 = []
                 self.avail_5 = []
 
+        colornumber_field_names = ['clue_val']
         replace_field_names = [tpl % (n + 1) for n in range(5) for tpl in
                                ['active_card_%s_clue_color', 'opponent_card_%s_color', 'opponent_card_%s_clue_color']]
         if 'clue_color' in df_train:
             replace_field_names.append('clue_color')
-        copy_field_names = ['clues', 'turn', 'action_type', 'clue_number', 'play_card', 'clue_val']
+        copy_field_names = ['clues', 'turn', 'action_type', 'clue_number', 'play_card']
         for n in range(5):
             copy_field_names.append(f"active_card_{n + 1}_clue_number")
             copy_field_names.append(f"opponent_card_{n + 1}_clue_number")
@@ -88,6 +89,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
         def permutate(rec):
             colors = ['r', 'g', 'y', 'b', 'w']
             replace_fields: Dict[str, List] = {f: [] for f in replace_field_names}
+            colornumber_fields: Dict[str, List] = {f: [] for f in colornumber_field_names}
             copy_fields: Dict[str, List] = {f: [] for f in copy_field_names}
             shuffle_fields = [ColoredFields(c) for c in colors]
             perm: List[ColoredFields]
@@ -102,6 +104,11 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
                     if val != 'NA':
                         val = mapping[val].color
                     data.append(val)
+                for name, data in colornumber_fields.items():
+                    val = rec.__getattribute__(name)
+                    if val in mapping:
+                        val = mapping[val].color
+                    data.append(val)
                 for c, f in mapping.items():
                     f.stack.append(rec.__getattribute__('stack_' + c))
                     f.avail_1.append(rec.__getattribute__(f'avail_{c}1'))
@@ -111,6 +118,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
                     f.avail_5.append(rec.__getattribute__(f'avail_{c}5'))
             data = copy_fields
             data.update(replace_fields)
+            data.update(colornumber_fields)
             for f in shuffle_fields:
                 data[f'stack_{f.color}'] = f.stack
                 data[f'avail_{f.color}1'] = f.avail_1

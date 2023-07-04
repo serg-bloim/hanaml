@@ -1,4 +1,4 @@
-import sys
+import traceback
 import uuid
 from typing import Dict, NamedTuple, List
 
@@ -126,7 +126,7 @@ class Schedule:
         self.save()
         if task.is_failed():
             print(f"Task {task.id()} failed")
-            print(task.get_error(), file=sys.stderr)
+            traceback.print_exception(task.get_error())
         else:
             print(f"Task {task.id()} is complete succesfully")
 
