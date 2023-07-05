@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import Dict
 
 import plotly.graph_objects as go
-from plotly.graph_objs import Figure
 from plotly.subplots import make_subplots
 
 from util.core import find_root_dir
@@ -25,12 +24,11 @@ class MyTestCase(unittest.TestCase):
         color_mapping = defaultdict(
             lambda: f"rgb({random.randint(0, 255)},{random.randint(0, 255)},{random.randint(0, 255)})")
         fig = make_subplots(rows=len(histories), cols=1, subplot_titles=list(histories.keys()), vertical_spacing=0.006)
-        fig = go.Figure()
-        fig.add_scatter()
         for i, (model, hist) in enumerate(histories.items()):
             for name, y in hist.items():
                 fig.add_trace(
-                    go.Scatter(y=y, name=model + "_" + name, marker_color=color_mapping[name]),
+                    go.Scatter(y=y, name=model + "_" + name, marker_color=color_mapping[name],
+                               visible='legendonly' if 'loss' in name else True),
                     row=i + 1, col=1
                 )
         fig.update_layout(height=800 * len(histories), width=1500, title_text="Side By Side Subplots")
