@@ -9,7 +9,6 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 import progressbar
-import tabulate
 import tensorflow as tf
 from keras.layers import StringLookup
 from pandas import Series
@@ -85,6 +84,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
             copy_field_names.append(f"opponent_card_{n + 1}_clue_number")
             copy_field_names.append(f"opponent_card_{n + 1}_number")
         copy_field_names = [fn for fn in copy_field_names if fn in df_train]
+        colornumber_field_names = [x for x in colornumber_field_names if x in df_train]
 
         def permutate(rec):
             colors = ['r', 'g', 'y', 'b', 'w']
