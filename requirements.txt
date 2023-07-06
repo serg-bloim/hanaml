@@ -10,3 +10,4 @@ plotly
 progressbar2
 tabulate
 diskcache
+matplotlib

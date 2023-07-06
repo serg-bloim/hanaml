@@ -1,18 +1,19 @@
+import collections
 import itertools
 import json
 import pathlib
 import shutil
 from pathlib import Path
-from typing import Any, Callable, List
+from typing import Any, Callable, List, NamedTuple
 from typing import Dict
 
 import numpy as np
 import pandas as pd
 import progressbar
 import tensorflow as tf
-from keras.layers import StringLookup
+from keras.layers import StringLookup, IntegerLookup
 from pandas import Series
-from tensorflow.python.data.ops.dataset_ops import DatasetV1Adapter
+from tensorflow.python.data.ops.dataset_ops import DatasetV1Adapter, DatasetV1, DatasetV2
 
 from core.generate_test_cases import load_test_cases, Field, to_dtype, Encoding
 from util.core import find_root_dir
@@ -62,6 +63,7 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
     batch_size = 5
     dataset_lbl = df.pop('dataset')
     df_train = df[dataset_lbl == 'train']
+    class_cnt = collections.Counter(df_train[target_column])
     if permutate_colors:
         class ColoredFields:
             def __init__(self, color) -> None:
@@ -142,7 +144,8 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
                                         target_encoder=lbl_encoder)
     test_ds, lbl_encoder = df_to_dataset(df_test, batch_size=batch_size, target_name=target_column, shuffle=False,
                                          target_encoder=lbl_encoder)
-    return train_ds, val_ds, test_ds, lbl_encoder
+    return TrainingData(train_ds, val_ds, test_ds, lbl_encoder,
+                        class_cnt={lbl_encoder(k).numpy().astype(int): v for k, v in class_cnt.items()})
 
 
 def load_dataframe(ver):
@@ -161,19 +164,28 @@ def load_dataframe(ver):
     return df, fields_map
 
 
+class TrainingData(NamedTuple):
+    train_ds: DatasetV1 | DatasetV2
+    val_ds: DatasetV1 | DatasetV2
+    test_ds: DatasetV1 | DatasetV2
+    label_enc: StringLookup | IntegerLookup
+    fields_map: Dict[str, Field] = None,
+    class_cnt: Dict[int, int] = None
+
+
 def create_data_action(ver, **kwargs):
     target_column = 'action_type'
     df, fields_map = load_dataframe(ver)
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
-    return train_ds, val_ds, test_ds, fields_map, label_enc
+    data: TrainingData = create_custom_data(df, target_column, **kwargs)
+    return data._replace(fields_map=fields_map)
 
 
 def create_data_play(ver, **kwargs):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'play']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
-    return train_ds, val_ds, test_ds, fields_map, label_enc
+    data = create_custom_data(df, target_column, **kwargs)
+    return data._replace(fields_map=fields_map)
 
 
 def create_data_clue(ver, **kwargs):
@@ -181,16 +193,16 @@ def create_data_clue(ver, **kwargs):
     df, fields_map = load_dataframe(ver)
     df['clue_val'] = df.clue_number.fillna(df.clue_color)
     df = df[df['action_type'] == 'clue']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
-    return train_ds, val_ds, test_ds, fields_map, label_enc
+    data = create_custom_data(df, target_column, **kwargs)
+    return data._replace(fields_map=fields_map)
 
 
 def create_data_discard(ver, **kwargs):
     target_column = 'play_card'
     df, fields_map = load_dataframe(ver)
     df = df[df['action_type'] == 'discard']
-    train_ds, val_ds, test_ds, label_enc = create_custom_data(df, target_column, **kwargs)
-    return train_ds, val_ds, test_ds, fields_map, label_enc
+    data = create_custom_data(df, target_column, **kwargs)
+    return data._replace(fields_map=fields_map)
 
 
 def get_normalization_layer(field, ds):
@@ -251,7 +263,7 @@ def df_to_dataset(df: pd.DataFrame, shuffle=True, batch_size=5, target_name='tar
 
 
 def train_model(model: tf.keras.Model, train_ds, val_ds, test_ds, epochs, label_enc, save_name, save_each_n_epochs=None,
-                callbacks=None, starting_epoch=0, checkpoint_every_n_epochs=100, epoch_size=1000):
+                callbacks=None, starting_epoch=0, checkpoint_every_n_epochs=100, epoch_size=1000, class_weight=None):
     print(f"Start training. Datasize: {len(train_ds)}/{len(test_ds)}")
 
     bar = progressbar.ProgressBar(max_value=epochs,
@@ -275,7 +287,7 @@ def train_model(model: tf.keras.Model, train_ds, val_ds, test_ds, epochs, label_
         all_callbacks += callbacks
 
     model.fit(train_ds.repeat(), epochs=epochs, verbose=0, validation_data=val_ds, callbacks=all_callbacks,
-              steps_per_epoch=epoch_size)
+              steps_per_epoch=epoch_size, class_weight=class_weight)
     if epochs > 0:
         save_model(model, model_naming(starting_epoch + epochs), label_enc)
     loss, accuracy = model.evaluate(test_ds)

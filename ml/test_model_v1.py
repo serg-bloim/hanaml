@@ -1,39 +1,37 @@
-import json
 import unittest
-from typing import Tuple, Any
 
 import numpy
+import numpy as np
+import pandas as pd
 import progressbar
 import tabulate
 import tensorflow as tf
-from keras.layers import StringLookup
-from tensorflow.python.data.ops.dataset_ops import DatasetV1Adapter
 
 from ml.ml_util import create_input_pipeline, create_data_action, train_model, create_data_play, create_data_discard, \
-    create_data_clue, load_model
-from util.core import find_root_dir
+    create_data_clue, load_model, TrainingData
+from util.core import find_root_dir, calc_weights
 
 
 class MyTestCase(unittest.TestCase):
-    model_type = 'discard'
+    model_type = 'action'
     model_ver = 'v4'
     model_epochs = 5000
-    model_name_suffix = '_test'
+    model_name_suffix = '_test_unweighted'
     layers = [30, 30]
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')
 
-    def test_create_model(self, epochs=10000, save_n_epochs=500, checkpoint_n_epochs=100):
-        train_ds, val_ds, test_ds, fields_map, label_enc = self.create_data(permutate_colors=True)
-        [(train_features, label_batch)] = train_ds.take(1)
+    def test_create_model(self, epochs=1000, save_n_epochs=100, checkpoint_n_epochs=0):
+        data: TrainingData = self.create_data(permutate_colors=False)
+        [(train_features, label_batch)] = data.train_ds.take(1)
         all_inputs = []
         encoded_features = []
         iter = list(train_features.keys())
         iter = progressbar.progressbar(iter, prefix="Creating input pipelines")
         for feature in iter:
-            field = fields_map[feature]
-            inp, encoded = create_input_pipeline(field, train_ds, self.model_ver)
+            field = data.fields_map[feature]
+            inp, encoded = create_input_pipeline(field, data.train_ds, self.model_ver)
             all_inputs.append(inp)
             encoded_features.append(encoded)
         all_features = tf.keras.layers.concatenate(encoded_features)
@@ -41,8 +39,10 @@ class MyTestCase(unittest.TestCase):
         for l_size in self.layers:
             x = tf.keras.layers.Dense(l_size, activation="relu")(x)
         x = tf.keras.layers.Dropout(0.5)(x)
-        output = tf.keras.layers.Dense(label_enc.vocabulary_size(), activation='softmax')(x)
+        output = tf.keras.layers.Dense(data.label_enc.vocabulary_size(), activation='softmax')(x)
         model = tf.keras.Model(all_inputs, output)
+        weights = {i: 1 for i in range(1 + max(data.class_cnt.keys()))}
+        weights.update(calc_weights(data.class_cnt))
         model.compile(optimizer='adam',
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=['acc'])
@@ -51,11 +51,11 @@ class MyTestCase(unittest.TestCase):
         img_dir.mkdir(parents=True, exist_ok=True)
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
                                   to_file=img_dir / f"{model_prefix}.png")
-        train_model(model, train_ds, val_ds, test_ds, epochs, label_enc, model_prefix, save_each_n_epochs=save_n_epochs,
-                    checkpoint_every_n_epochs=checkpoint_n_epochs)
+        train_model(model, data.train_ds, data.val_ds, data.test_ds, epochs, data.label_enc, model_prefix,
+                    save_each_n_epochs=save_n_epochs,
+                    checkpoint_every_n_epochs=checkpoint_n_epochs, class_weight=weights)
 
-    def create_data(self, lbl_encoder=None, permutate_colors=False, **kwargs) -> Tuple[
-        DatasetV1Adapter, DatasetV1Adapter, DatasetV1Adapter, object, StringLookup]:
+    def create_data(self, lbl_encoder=None, permutate_colors=False, **kwargs):
         provider = {'action': create_data_action,
                     'play': create_data_play,
                     'clue': create_data_clue,
@@ -102,34 +102,37 @@ class MyTestCase(unittest.TestCase):
         pass
 
     def test_predict_action(self):
-        class VocabularyLayer(tf.keras.layers.Layer):
+        model: tf.keras.models.Model
+        model, enc, custom = load_model(find_root_dir() / 'model/action_v4_test_unweighted_100')
+        train_ds, val_ds, test_ds, fields_map, label_enc, *_ = create_data_action(self.model_ver)
 
-            def __init__(self, vocab, trainable=True, name=None, dtype=None, dynamic=False, **kwargs):
-                super().__init__(trainable, name, dtype, dynamic, **kwargs)
-                self.vocab = vocab
+        def data_distribution(ds):
+            res = model.predict(ds)
+            analyze = pd.DataFrame()
+            analyze['true_lbl_num'] = [row[1].numpy() for row in ds.unbatch()]
+            analyze['true_lbl'] = analyze['true_lbl_num'].map(enc.get_vocabulary().__getitem__)
+            analyze['actual_data'] = [x for x in res]
+            analyze['argmax'] = analyze['actual_data'].map(np.argmax)
+            analyze['certainty'] = analyze['actual_data'].map(np.max)
+            analyze['prediction'] = analyze['argmax'].map(enc.get_vocabulary().__getitem__)
+            print(analyze.true_lbl.value_counts())
+            col1 = analyze.true_lbl
+            col2 = analyze.prediction
+            uniq = col1.unique().tolist()
+            sss = [(v, col1 == v) for v in uniq] + [('all', col1.map(lambda x: True))]
+            sss.sort()
+            data = []
+            for name, ss in sss:
+                l = sum(ss)
+                acc = sum(col1[ss] == col2[ss]) / l * 100
+                data.append([name, l, 100 * l / len(col1), acc] + [sum(col2[ss] == x) / l * 100 for x in uniq])
+            print(tabulate.tabulate(data, headers=('name length % acc' + ''.join(f" {x}" for x in uniq)).split()))
 
-            def call(self, inputs, *args, **kwargs):
-                return tf.nest.map_structure(lambda x: {'prediction': x, 'vocabulary': self.vocab}, inputs)
+        print(f"Validation data:")
+        data_distribution(val_ds)
 
-        model_dir = find_root_dir() / f'model/action_v2_7000'
-        model: tf.keras.Model = tf.keras.models.load_model(model_dir)
-
-        model2 = tf.keras.Model(model.inputs, VocabularyLayer('abc def hij klm'.split())(model.output))
-        input: dict[Any, Any] = {}
-        with open(find_root_dir() / 'data/input.json', 'r') as f:
-            input = json.load(f)
-        print(input)
-        data = tf.data.Dataset.from_tensor_slices({f: [v] for f, v in input.items()})
-        prediction = model.predict(data.batch(1))
-        print(prediction)
-        prediction = model2.predict(data.batch(1))
-        print(prediction)
-
-        pass
-
-    def test_from_tensor_slices(self):
-        ds = tf.data.Dataset.from_tensor_slices(([1, 2, 3], [4, 5, 6]))
-        print(list(ds.as_numpy_iterator()))
+        print(f"\n\nTrain data:")
+        data_distribution(train_ds)
 
 
 if __name__ == '__main__':

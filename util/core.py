@@ -1,6 +1,6 @@
 from functools import cache
 from pathlib import Path
-from typing import Iterable, Dict, TypeVar, Union, Mapping, TextIO, List
+from typing import Iterable, Dict, TypeVar, Union, Mapping, TextIO, List, Any
 
 import numpy as np
 
@@ -86,3 +86,9 @@ def convert_type(iter: Iterable[Dict], converter, fields: Iterable, replace_on_e
                     converted = replace_on_error
                 d[f] = converted
         yield d
+
+
+def calc_weights(freqs: Dict[Any, int]):
+    total = sum(freqs.values())
+    weights = {k: total / v for k, v in freqs.items()}
+    return weights

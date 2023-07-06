@@ -24,7 +24,8 @@ class MyTestCase(unittest.TestCase):
         color_mapping = defaultdict(
             lambda: f"rgb({random.randint(0, 255)},{random.randint(0, 255)},{random.randint(0, 255)})")
         fig = make_subplots(rows=len(histories), cols=1, subplot_titles=list(histories.keys()), vertical_spacing=0.006)
-        for i, (model, hist) in enumerate(histories.items()):
+
+        for i, (model, hist) in enumerate(sorted(histories.items())):
             for name, y in hist.items():
                 fig.add_trace(
                     go.Scatter(y=y, name=model + "_" + name, marker_color=color_mapping[name],
