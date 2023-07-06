@@ -23,7 +23,7 @@ class MyTestCase(unittest.TestCase):
         tf.get_logger().setLevel('INFO')
 
     def test_create_model(self, epochs=1000, save_n_epochs=100, checkpoint_n_epochs=0):
-        data: TrainingData = self.create_data(permutate_colors=False)
+        data: TrainingData = self.create_data(permutate_colors=True)
         [(train_features, label_batch)] = data.train_ds.take(1)
         all_inputs = []
         encoded_features = []
