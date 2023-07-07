@@ -84,7 +84,8 @@ class Schedule:
         self.filepath = filepath
         self.tasks: Dict[str, ScheduledTask] = {}
 
-    def update(self):
+    def update(self, save_tasks=None):
+        save_tasks_ids = [t.id() for t in save_tasks]
         with open(self.filepath, 'r') as f:
             data = yaml.safe_load_all(f)
             need_save = False
@@ -97,8 +98,10 @@ class Schedule:
                 if id not in self.tasks:
                     self.tasks[id] = self.create_task(task_cfg)
                     need_save = True
-                else:
+                if id not in save_tasks_ids:
                     need_save = need_save or self.tasks[id].update_config(task_cfg)
+        if save_tasks is not None:
+            need_save = True
         if need_save:
             self.save()
 
@@ -108,7 +111,7 @@ class Schedule:
         inst.update_config(cfg)
         return inst
 
-    def save(self):
+    def save(self, task: ScheduledTask):
         with open(self.filepath, 'w') as f:
             yaml.safe_dump_all([d.get_config() for d in self.tasks.values()], f, sort_keys=False)
 
@@ -134,9 +137,8 @@ class Schedule:
 def run_scheduled_tasks(schedule_filepath):
     schedule = Schedule(schedule_filepath)
     while True:
-        schedule.update()
         if not schedule.has_incomplete():
             break
         task = schedule.get_next_incomplete()
         schedule.run_task(task)
-        schedule.save()
+        schedule.update(save_tasks=[task])
