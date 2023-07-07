@@ -124,10 +124,10 @@ class Schedule:
 
     def run_task(self, task):
         task.set_state('running')
-        self.save()
+        self.update(save_tasks=[task])
         task.run()
         task.set_state('failed' if task.is_failed() else 'complete')
-        self.save()
+        self.update(save_tasks=[task])
         if task.is_failed():
             print(f"Task {task.id()} failed")
             traceback.print_exception(task.get_error())
@@ -137,10 +137,9 @@ class Schedule:
 
 def run_scheduled_tasks(schedule_filepath):
     schedule = Schedule(schedule_filepath)
-    schedule.update()
     while True:
+        schedule.update()
         if not schedule.has_incomplete():
             break
         task = schedule.get_next_incomplete()
         schedule.run_task(task)
-        schedule.update(save_tasks=[task])
