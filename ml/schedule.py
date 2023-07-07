@@ -112,7 +112,7 @@ class Schedule:
         inst.update_config(cfg)
         return inst
 
-    def save(self, task: ScheduledTask):
+    def save(self):
         with open(self.filepath, 'w') as f:
             yaml.safe_dump_all([d.get_config() for d in self.tasks.values()], f, sort_keys=False)
 
