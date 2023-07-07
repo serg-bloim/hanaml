@@ -59,6 +59,7 @@ class TrainModelTask(ScheduledTask):
             epochs: int
             target: str
             state: str = 'new'
+            prefix: str = '_scheduled'
             layers: List[int] = [30, 30]
             data_ver: str = 'v4'
             checkpoint_n_epochs: int = 100
@@ -73,7 +74,7 @@ class TrainModelTask(ScheduledTask):
         cfg = self._cfg_parsed
         test.model_type = cfg.target
         test.model_ver = cfg.data_ver
-        test.model_name_suffix = ''.join(f"_{x}" for x in cfg.layers)
+        test.model_name_suffix = cfg.prefix + ''.join(f"_{x}" for x in cfg.layers)
         print(f"\n\nRunning task {self.id()}")
         print(
             f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}\n")
@@ -117,7 +118,7 @@ class Schedule:
             yaml.safe_dump_all([d.get_config() for d in self.tasks.values()], f, sort_keys=False)
 
     def has_incomplete(self):
-        return any(not t.completed() for t in self.tasks.values())
+        return any(not (t.completed() or t.is_failed()) for t in self.tasks.values())
 
     def get_next_incomplete(self):
         return next(t for t in self.tasks.values() if not (t.completed() or t.is_failed()))
