@@ -58,6 +58,7 @@ class TrainModelTask(ScheduledTask):
             type: str
             epochs: int
             target: str
+            permutate_colors: bool = True
             optimizer: str = 'adam'
             state: str = 'new'
             prefix: str = '_scheduled'
@@ -70,13 +71,20 @@ class TrainModelTask(ScheduledTask):
         return super().update_config(cfg)
 
     def _exec(self):
+        import tensorflow as tf
         test = MyTestCase()
         test.setUp()
         cfg = self._cfg_parsed
         test.model_type = cfg.target
         test.model_ver = cfg.data_ver
-        test.optimizer = cfg.optimizer
-        test.model_name_suffix = cfg.prefix + '_' + cfg.optimizer + ''.join(f"_{x}" for x in cfg.layers)
+        test.permutate_colors = cfg.permutate_colors
+        opt = cfg.optimizer
+        opt_str = cfg.optimizer
+        if isinstance(cfg.optimizer, dict):
+            opt = tf.keras.optimizers.deserialize(cfg.optimizer)
+            opt_str = cfg.optimizer['class_name']
+        test.optimizer = opt
+        test.model_name_suffix = cfg.prefix + '_' + opt_str + ''.join(f"_{x}" for x in cfg.layers)
         print(f"\n\nRunning task {self.id()}")
         print(
             f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}\n")

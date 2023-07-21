@@ -19,12 +19,14 @@ class MyTestCase(unittest.TestCase):
     model_name_suffix = '_test_unweighted'
     optimizer = 'adam'
     layers = [30, 30]
+    permutate_colors = True
+
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')
 
     def test_create_model(self, epochs=1000, save_n_epochs=100, checkpoint_n_epochs=0):
-        data: TrainingData = self.create_data(permutate_colors=True)
+        data: TrainingData = self.create_data(permutate_colors=self.permutate_colors)
         [(train_features, label_batch)] = data.train_ds.take(1)
         all_inputs = []
         encoded_features = []
