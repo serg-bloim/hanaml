@@ -4,11 +4,11 @@ from ml.ml_util import ModelContainer, load_model
 from ml.player_adapter import AIHanabiClient
 from util.core import find_root_dir
 
-model_dir = find_root_dir() / 'model'
-action_model, action_encoder, _ = load_model(model_dir / 'action_v4_1600')
-play_model, play_encoder, _ = load_model(model_dir / 'play_v4_1000')
-discard_model, discard_encoder, _ = load_model(model_dir / 'discard_v4_1600')
-clue_model, clue_encoder, _ = load_model(model_dir / 'clue_v4_1000')
+model_dir = find_root_dir() / 'model/g0'
+action_model, action_encoder, _ = load_model(model_dir / 'action_v4_100_150_150_100_30_1000')
+play_model, play_encoder, _ = load_model(model_dir / 'play_v4_20_20_20_20_1000')
+discard_model, discard_encoder, _ = load_model(model_dir / 'discard_v4_100_150_150_100_30_1000')
+clue_model, clue_encoder, _ = load_model(model_dir / 'clue_v4_100_150_150_100_30_1000')
 
 while True:
     try:

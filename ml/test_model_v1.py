@@ -17,6 +17,7 @@ class MyTestCase(unittest.TestCase):
     model_ver = 'v4'
     model_epochs = 5000
     model_name_suffix = '_test_unweighted'
+    optimizer = 'adam'
     layers = [30, 30]
 
     def setUp(self) -> None:
@@ -43,10 +44,10 @@ class MyTestCase(unittest.TestCase):
         model = tf.keras.Model(all_inputs, output)
         weights = {i: 1 for i in range(1 + max(data.class_cnt.keys()))}
         weights.update(calc_weights(data.class_cnt))
-        model.compile(optimizer='adam',
+        model.compile(optimizer=self.optimizer,
                       loss=tf.keras.losses.SparseCategoricalCrossentropy(),
                       metrics=['acc'])
-        model_prefix = f"{self.model_type}_{self.model_ver}{self.model_name_suffix}_"
+        model_prefix = f"{self.model_type}_{self.model_ver}_{self.model_name_suffix}_"
         img_dir = find_root_dir() / 'model/_img'
         img_dir.mkdir(parents=True, exist_ok=True)
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
