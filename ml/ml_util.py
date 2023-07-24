@@ -3,6 +3,7 @@ import itertools
 import json
 import pathlib
 import shutil
+from json import JSONEncoder
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
 from typing import Dict
@@ -308,10 +309,17 @@ def save_model(model: tf.keras.models.Model, path, label_enc: StringLookup, **kw
         config = label_enc.get_config()
         config['vocabulary'] = label_enc.get_vocabulary()
         json.dump(config, f)
-    custom_objects = {'history': model.history.history}
+    custom_objects = {'history': model.history.history, 'optimizer': tf.optimizers.serialize(model.optimizer)}
     custom_objects.update(kwargs)
+
+    class Float32Encoder(JSONEncoder):
+        def default(self, o: Any) -> Any:
+            if isinstance(o, np.float32):
+                return float(o)
+            return o
+
     with open(path / 'custom_objects.json', 'w') as f:
-        json.dump(custom_objects, f)
+        json.dump(custom_objects, f, cls=Float32Encoder)
 
 
 def load_model(path: Path):
