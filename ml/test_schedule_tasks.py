@@ -46,13 +46,12 @@ class ScheduleTestCase(unittest.TestCase):
                 for lr in learning_rates:
                     for m in momentums:
                         optimizer = {
-                            "optimizer": {
-                                "class_name": "sgd",
-                                "config": {
-                                    "learning_rate": lr,
-                                    "momentum": m
-                                }
+                            "class_name": "sgd",
+                            "config": {
+                                "learning_rate": lr,
+                                "momentum": m
                             }
+
                         }
                         data.append({
                             'type': 'train',
@@ -69,5 +68,3 @@ class ScheduleTestCase(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-

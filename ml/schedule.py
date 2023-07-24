@@ -1,3 +1,5 @@
+import random
+import string
 import traceback
 import uuid
 from typing import Dict, NamedTuple, List
@@ -84,7 +86,8 @@ class TrainModelTask(ScheduledTask):
             opt = tf.keras.optimizers.deserialize(cfg.optimizer)
             opt_str = cfg.optimizer['class_name']
         test.optimizer = opt
-        test.model_name_suffix = cfg.prefix + '_' + opt_str + ''.join(f"_{x}" for x in cfg.layers)
+        rnd = ''.join(random.choices(string.ascii_letters, k=5))
+        test.model_name_suffix = cfg.prefix + '_' + opt_str + ''.join(f"_{x}" for x in cfg.layers) + rnd
         print(f"\n\nRunning task {self.id()}")
         print(
             f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}\n")
