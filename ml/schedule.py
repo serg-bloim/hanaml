@@ -62,6 +62,7 @@ class TrainModelTask(ScheduledTask):
             target: str
             permutate_colors: bool = True
             optimizer: str = 'adam'
+            batch_size: int = 5
             state: str = 'new'
             prefix: str = '_scheduled'
             layers: List[int] = [30, 30]
@@ -82,6 +83,7 @@ class TrainModelTask(ScheduledTask):
         test.permutate_colors = cfg.permutate_colors
         opt = cfg.optimizer
         opt_str = cfg.optimizer
+        test.batch_size = cfg.batch_size
         if isinstance(cfg.optimizer, dict):
             opt = tf.keras.optimizers.deserialize(cfg.optimizer)
             opt_str = cfg.optimizer['class_name']

@@ -52,7 +52,7 @@ class ModelContainer:
         pass
 
 
-def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, permutate_colors=False):
+def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, permutate_colors=False, batch_size=5):
     columns2remove = 'action_type clue_number clue_color play_card'.split()
 
     try:
@@ -61,7 +61,6 @@ def create_custom_data(df, target_column, lbl_encoder: StringLookup = None, perm
         pass
     df = df.drop(columns2remove, axis=1)
     df.fillna('NA', inplace=True)
-    batch_size = 5
     dataset_lbl = df.pop('dataset')
     df_train = df[dataset_lbl == 'train']
     class_cnt = collections.Counter(df_train[target_column])

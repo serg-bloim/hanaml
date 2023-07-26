@@ -20,13 +20,15 @@ class MyTestCase(unittest.TestCase):
     optimizer = 'adam'
     layers = [30, 30]
     permutate_colors = True
+    batch_size = 32
+    samples_pe = 32768
 
 
     def setUp(self) -> None:
         tf.get_logger().setLevel('INFO')
 
     def test_create_model(self, epochs=1000, save_n_epochs=100, checkpoint_n_epochs=0):
-        data: TrainingData = self.create_data(permutate_colors=self.permutate_colors)
+        data: TrainingData = self.create_data(permutate_colors=self.permutate_colors, batch_size=self.batch_size)
         [(train_features, label_batch)] = data.train_ds.take(1)
         all_inputs = []
         encoded_features = []
@@ -54,7 +56,8 @@ class MyTestCase(unittest.TestCase):
         img_dir.mkdir(parents=True, exist_ok=True)
         tf.keras.utils.plot_model(model, show_shapes=True, rankdir="LR", show_dtype=True,
                                   to_file=img_dir / f"{model_prefix}.png")
-        train_model(model, data.train_ds, data.val_ds, data.test_ds, epochs, data.label_enc, model_prefix,
+        train_model(model, data.train_ds, data.val_ds, data.val_ds, epochs, data.label_enc, model_prefix,
+                    epoch_size=self.samples_pe // self.batch_size,
                     save_each_n_epochs=save_n_epochs,
                     checkpoint_every_n_epochs=checkpoint_n_epochs, class_weight=weights)
 
