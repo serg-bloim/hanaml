@@ -289,7 +289,8 @@ def train_model(model: tf.keras.Model, train_ds, val_ds, test_ds, epochs, label_
     model.fit(train_ds.repeat(), epochs=epochs, verbose=0, validation_data=val_ds, callbacks=all_callbacks,
               steps_per_epoch=epoch_size, class_weight=class_weight)
     if epochs > 0:
-        save_model(model, model_naming(starting_epoch + epochs), label_enc)
+        batch_size = len(next(iter(train_ds.take(1).get_single_element()[0].values())))
+        save_model(model, model_naming(starting_epoch + epochs), label_enc, batch_size=batch_size)
     loss, accuracy = model.evaluate(test_ds)
     print(f"Test evaluation accuracy after {epochs} epochs = {accuracy}")
 

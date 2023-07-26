@@ -88,7 +88,7 @@ class TrainModelTask(ScheduledTask):
             opt = tf.keras.optimizers.deserialize(cfg.optimizer)
             opt_str = cfg.optimizer['class_name']
         test.optimizer = opt
-        rnd = ''.join(random.choices(string.ascii_letters, k=5))
+        rnd = ''.join(random.choices(string.ascii_lowercase, k=5))
         test.model_name_suffix = cfg.prefix + '_' + opt_str + ''.join(f"_{x}" for x in cfg.layers) + '_' + rnd
         print(f"\n\nRunning task {self.id()}")
         print(
