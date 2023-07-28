@@ -181,6 +181,7 @@ class TrainModelTask(ScheduledTask):
         rnd = ''.join(random.choices(string.ascii_lowercase, k=5))
         test.model_name_suffix = cfg.prefix + '_' + opt_str + ''.join(f"_{x}" for x in cfg.layers) + '_' + rnd
         print(f"\n\nRunning task {self.id()}")
+        print(yaml.safe_dump(self.get_config()))
         print(
             f"Training model type {cfg.target} for {cfg.epochs} epochs with layers config: {test.model_name_suffix}\n")
         test.test_create_model(cfg.epochs, save_n_epochs=cfg.save_n_epochs, checkpoint_n_epochs=cfg.checkpoint_n_epochs)
