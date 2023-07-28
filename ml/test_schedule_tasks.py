@@ -13,6 +13,9 @@ class ScheduleTestCase(unittest.TestCase):
     def test_training_schedule2(self):
         run_scheduled_tasks(find_root_dir() / 'data/schedule/training.yml')
 
+    def test_training_schedule3(self):
+        run_scheduled_tasks(find_root_dir() / 'data/schedule/training.yml')
+
     def test_create_schedule(self):
         prefix = 'g1'
         layer_configs = ['10', '30 30', '20 20 20 20', '200 150 100 50 10', '100 150 150 100 50 10']

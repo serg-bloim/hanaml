@@ -3,6 +3,7 @@ import random
 import string
 import traceback
 import uuid
+from pathlib import Path
 from typing import Dict, NamedTuple, List
 
 import filelock
@@ -11,6 +12,16 @@ from filelock import FileLock
 
 from ml.test_model_v1 import MyTestCase
 from util.core import find_root_dir
+
+
+class CleanUpFileLock(FileLock):
+    def __init__(self, lock_path, timeout=-1):
+        super().__init__(lock_path, timeout=timeout)
+        self.lock_path = lock_path
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        os.remove(self.lock_path)
+        super().__exit__(exc_type, exc_value, traceback)
 
 
 class ScheduledTask:
@@ -60,30 +71,33 @@ class ScheduledTask:
 
 
 class Schedule:
-    def __init__(self, filepath) -> None:
+    def __init__(self, filepath: Path) -> None:
         self.filepath = filepath
         self.tasks: Dict[str, ScheduledTask] = {}
 
     def update(self, save_tasks=None):
         save_tasks_ids = [t.id() for t in save_tasks or []]
-        with open(self.filepath, 'r') as f:
-            data = yaml.safe_load_all(f)
-            need_save = False
-            for task_cfg in data:
-                if 'id' not in task_cfg:
-                    old_cfg = task_cfg
-                    task_cfg = dict(id=str(uuid.uuid4()))
-                    task_cfg.update(old_cfg)
-                id = task_cfg['id']
-                if id not in self.tasks:
-                    self.tasks[id] = self.create_task(task_cfg)
-                    need_save = True
-                if id not in save_tasks_ids:
-                    need_save = need_save or self.tasks[id].update_config(task_cfg)
-        if save_tasks is not None:
-            need_save = True
-        if need_save:
-            self.save()
+        with CleanUpFileLock(self.filepath.with_suffix(self.filepath.suffix + ".lock")):
+            with open(self.filepath, 'r') as f:
+                data = yaml.safe_load_all(f)
+                need_save = False
+                for task_cfg in data:
+                    if task_cfg is None:
+                        continue
+                    if 'id' not in task_cfg:
+                        old_cfg = task_cfg
+                        task_cfg = dict(id=str(uuid.uuid4()))
+                        task_cfg.update(old_cfg)
+                    id = task_cfg['id']
+                    if id not in self.tasks:
+                        self.tasks[id] = self.create_task(task_cfg)
+                        need_save = True
+                    if id not in save_tasks_ids:
+                        need_save = need_save or self.tasks[id].update_config(task_cfg)
+            if save_tasks is not None:
+                need_save = True
+            if need_save:
+                self.save()
 
     def create_task(self, cfg):
         clazz = {'train': TrainModelTask}[cfg['type']]
@@ -125,15 +139,7 @@ class Schedule:
         lock_path = find_root_dir() / f'data/schedule/.task_locks/{task.id()}.lock'
         lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        class CleanUpFileLock(FileLock):
-            def __init__(self):
-                super().__init__(lock_path, timeout=0)
-
-            def __exit__(self, exc_type, exc_value, traceback):
-                os.remove(lock_path)
-                super().__exit__(exc_type, exc_value, traceback)
-
-        return CleanUpFileLock()
+        return CleanUpFileLock(lock_path, 0)
 
 
 class TrainModelTask(ScheduledTask):
