@@ -10,6 +10,7 @@ import requests
 
 from core.domain import BgaTable, BgaReplayId
 from util.core import find_root_dir
+from util.proxy import get_proxy
 
 HANABI_GAME_ID = 1015
 
@@ -88,7 +89,7 @@ def auth(acc='just_learning'):
             'x-requested-with': 'XMLHttpRequest'
         }
     }
-    s.proxies = dict(https='socks5://173.212.234.94:60523')
+    s.proxies = dict(https='socks5://' + get_proxy())
     s.headers = accs[acc]
     return s
 

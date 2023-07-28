@@ -1,15 +1,11 @@
 import json
 import os.path
-import time
 import unittest
 from collections import namedtuple
 
-import requests
-import tabulate
-from requests.exceptions import SSLError
-
 from net.bga import download_game_replay
 from util.core import find_root_dir
+from util.proxy import read_proxies, test_proxy, save_proxy
 
 
 class BGATestCase(unittest.TestCase):
@@ -45,60 +41,6 @@ class BGATestCase(unittest.TestCase):
             expected = json.loads(gr.replay_contents)
             self.assertTrue(actual == expected, "Jsons are different")
         pass
-
-    def test_test_proxies(self):
-        proxies = """68.1.210.163:4145
-72.206.181.103:4145
-173.212.234.94:60523
-103.111.227.217:1080
-192.111.129.145:16894
-51.158.72.165:16379
-163.172.131.178:16379
-72.195.114.169:4145
-51.68.39.222:29302
-67.207.92.96:1466
-165.227.90.84:33080
-146.59.178.220:35222
-139.59.7.217:50181
-66.175.238.253:36498
-107.152.98.5:4145
-195.66.156.196:1080
-98.188.47.150:4145
-192.111.135.17:18302
-51.178.141.208:42554
-51.158.77.220:16379
-31.217.221.74:8192
-51.222.241.8:23392
-116.105.162.177:1080
-94.72.61.46:1080
-75.119.128.227:46193
-72.195.114.184:4145
-51.195.139.95:61802
-192.111.134.10:4145
-142.54.228.193:4145
-45.32.75.173:10802""".splitlines()
-        results = []
-        for proxy in proxies:
-            ssl = True
-            try:
-                resp = requests.get("https://api.ipify.org", proxies=dict(https=f'socks5://{proxy}'), timeout=30)
-            except SSLError as err:
-                ssl = False
-            except:
-                pass
-            latency = 9999
-            resp_txt = ''
-            try:
-                start = time.perf_counter()
-                resp = requests.get("https://api.ipify.org", proxies=dict(https=f'socks5://{proxy}'), verify=False, timeout=30)
-                resp_txt = resp.text
-                latency = time.perf_counter() - start
-            except:
-                pass
-            print(f"Processed {proxy} {[proxy, ssl, latency, resp_txt]}")
-            results.append([proxy, ssl, latency, resp_txt])
-
-        print(tabulate.tabulate(results, headers=['proxy', 'ssl_respect', 'latency', 'resp_txt']))
 
 
 

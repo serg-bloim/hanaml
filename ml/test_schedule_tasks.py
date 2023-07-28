@@ -2,12 +2,15 @@ import unittest
 
 import yaml
 
-from ml.schedule import run_scheduled_tasks
+from core.schedule import run_scheduled_tasks
 from util.core import find_root_dir
 
 
 class ScheduleTestCase(unittest.TestCase):
     def test_training_schedule(self):
+        run_scheduled_tasks(find_root_dir() / 'data/schedule/training.yml')
+
+    def test_training_schedule2(self):
         run_scheduled_tasks(find_root_dir() / 'data/schedule/training.yml')
 
     def test_create_schedule(self):
